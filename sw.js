@@ -36,12 +36,12 @@ const PRECACHE_URLS = [
   './vendor/pdfjs/pdf.min.mjs',
   './vendor/pdfjs/pdf.worker.min.mjs',
   './vendor/fflate/browser.js',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-192.png',
-  './icons/icon-maskable-512.png',
-  './icons/apple-touch-icon.png',
-  './icons/favicon-32.png',
+  './app-icons/icon-192.png',
+  './app-icons/icon-512.png',
+  './app-icons/icon-maskable-192.png',
+  './app-icons/icon-maskable-512.png',
+  './app-icons/apple-touch-icon.png',
+  './app-icons/favicon-32.png',
 ];
 
 self.addEventListener('install', (event) => {
