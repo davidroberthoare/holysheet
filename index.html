@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <!--
+    The app is hosted at the domain root both locally and in production, and
+    Framework7's router uses real pushState paths (e.g. /viewer/<id>/). Without
+    an absolute <base>, the browser re-resolves any relative asset reference
+    (favicons, manifest, etc.) against whatever pushState path is current
+    instead of the real document location — this is not hypothetical, it was
+    caught during smoke testing (favicon re-fetched as /viewer/<id>/icons/...).
+  -->
+  <base href="/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>HolySheet</title>
+  <meta name="theme-color" content="#15161c" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icons/favicon-32.png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="HolySheet" />
+
+  <link rel="stylesheet" href="./vendor/framework7/css/framework7-bundle.min.css" />
+  <link rel="stylesheet" href="./vendor/framework7/icons/framework7-icons.css" />
+  <link rel="stylesheet" href="./css/app.css" />
+</head>
+<body>
+  <div id="app">
+    <div class="view view-main safe-areas" id="view-main"></div>
+
+    <div class="toolbar tabbar toolbar-bottom" id="main-tabbar">
+      <div class="toolbar-inner">
+        <a href="#" class="link" data-tab="library" data-route="/">
+          <i class="icon f7-icons">music_note_list</i>
+          <span class="tabbar-label">Library</span>
+        </a>
+        <a href="#" class="link" data-tab="playlists" data-route="/playlists/">
+          <i class="icon f7-icons">rectangle_stack</i>
+          <span class="tabbar-label">Playlists</span>
+        </a>
+        <a href="#" class="link" data-tab="settings" data-route="/settings/">
+          <i class="icon f7-icons">gear</i>
+          <span class="tabbar-label">Settings</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script src="./vendor/framework7/js/framework7-bundle.min.js"></script>
+  <script type="module">
+    // Caching kill-switch: off by default, so day-to-day dev never sees a
+    // stale cached file. See js/caching.js and the Settings page toggle.
+    import { isCachingEnabled, disableCaching } from './js/caching.js';
+    if (!isCachingEnabled()) {
+      disableCaching();
+    }
+  </script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

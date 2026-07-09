@@ -1,0 +1,98 @@
+html,
+body {
+  height: 100%;
+  background: #15161c;
+}
+
+/* #main-tabbar lives outside .view-main (it's shared across Library/Playlists/
+   Settings, not scoped to one page), so it doesn't pick up Framework7's own
+   position:fixed toolbar-bottom rules — those only apply to a toolbar nested
+   inside a .view/.page. Without this it sits in normal document flow below
+   the viewport fold (caught during smoke testing: computed position was
+   "relative", not "fixed", and it only became visible by accident on pages
+   long enough to scroll the whole body). Pin it manually, and since each
+   page's own .page-content has no way to know about this external toolbar,
+   manually reserve space for it too (skipped in viewer-mode, which hides the
+   tabbar and has its own properly-nested toolbar instead). */
+#main-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* .view-main itself is z-index:5000 (Framework7 default) — #main-tabbar is
+     its sibling under #app, not nested inside it, so it must clear that to
+     paint on top (caught during smoke testing: the tabbar existed, was
+     "fixed" and in-viewport, but .view-main's page-content painted over it). */
+  z-index: 5001;
+}
+
+body:not(.viewer-mode) .page-content {
+  padding-bottom: calc(var(--f7-toolbar-height, 56px) + var(--f7-safe-area-bottom, 0px));
+}
+
+/* Distraction-free reading: hide the main tabbar while a sheet is open. */
+.viewer-mode #main-tabbar {
+  display: none;
+}
+
+/* ---------- Library / Playlists empty states ---------- */
+#empty-state,
+#editor-empty-state {
+  color: var(--f7-block-text-color, #8e8e93);
+}
+
+/* ---------- Viewer ---------- */
+/* Don't set padding here — Framework7's own page-content rules already add
+   padding-top/bottom matching the navbar/toolbar heights, and overriding it
+   wholesale made the canvas render underneath the fixed navbar (caught during
+   smoke testing: draw events were landing on the navbar's back button). */
+.viewer-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #000;
+}
+
+.viewer-content::after {
+  content: '';
+  display: block;
+  height: 16px;
+}
+
+/* flex-shrink:0 is load-bearing, not decorative. .viewer-content (.page-content)
+   is a flex column with Framework7's own overflow:auto — a flex item's
+   min-height:auto normally stops it shrinking below its content size, but
+   that protection is dropped specifically when the container's overflow
+   isn't "visible". Without this, every page-wrap gets proportionally
+   squeezed to fit the viewport instead of overflowing it and letting the
+   container scroll — worse with more pages, since more items compete for
+   the same height (reported as "N pages -> N-1 evenly-spaced breaks, only
+   the last page renders full-height"). */
+.viewer-page-wrap {
+  position: relative;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.viewer-base-canvas,
+.viewer-anno-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+}
+
+.viewer-anno-canvas {
+  pointer-events: none;
+  touch-action: auto;
+}
+
+.viewer-toolbar.single-mode .song-nav {
+  visibility: hidden;
+}
+
+#pen-toggle.viewer-active-btn {
+  color: var(--f7-theme-color);
+}
