@@ -3,6 +3,8 @@ import { APP_VERSION } from './js/version.js';
 const CACHE_NAME = `holysheet-shell-${APP_VERSION}`;
 const RUNTIME_CACHE_NAME = `holysheet-runtime-${APP_VERSION}`;
 
+// localStorage.setItem('holysheet:cachingEnabled', 'false') to disable caching
+
 // Update this list whenever a new top-level source file is added (see
 // "Planned file structure" in CLAUDE.md). cache.addAll() fails the whole
 // install if any single URL 404s, which is deliberate — better to find out
