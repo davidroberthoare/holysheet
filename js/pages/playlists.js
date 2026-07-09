@@ -146,7 +146,7 @@ export const playlistsRoute = {
 // ---------- Playlist editor ----------
 
 function renderEditorList(el, sheetsById, sheetIds) {
-  const listEl = el.querySelector('#editor-sheet-list');
+  const listEl = el.querySelector('#editor-sheet-list ul');
   const emptyEl = el.querySelector('#editor-empty-state');
 
   if (!sheetIds.length) {
@@ -257,7 +257,7 @@ export const playlistEditorRoute = {
         </div>
       </div>
       <div class="page-content">
-        <div class="list media-list sortable" id="editor-sheet-list"></div>
+        <div class="list media-list sortable" id="editor-sheet-list"><ul></ul></div>
         <div class="block block-strong text-align-center" id="editor-empty-state">
           <p>No sheets in this playlist yet. Tap + to add some from your library.</p>
         </div>
