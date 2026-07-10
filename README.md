@@ -11,5 +11,3 @@ python3 -m http.server 8420
 ```
 
 Then open `http://localhost:8420/index.html`. Any static file server works.
-
-See `CLAUDE.md` for the full architecture notes and known gotchas.
