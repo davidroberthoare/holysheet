@@ -55,6 +55,12 @@ export function downloadExport(blob, filename) {
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
+  // Without this, Framework7's router intercepts the synthetic click on this
+  // <a href> (it hijacks any in-app link click by default) and navigates to
+  // its catch-all route instead of letting the browser perform the native
+  // download — the export silently "worked" (blob built fine) but the file
+  // never downloaded and the app dropped back to the root route.
+  a.classList.add('external');
   document.body.appendChild(a);
   a.click();
   a.remove();
