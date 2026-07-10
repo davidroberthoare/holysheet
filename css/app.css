@@ -49,7 +49,13 @@ body:not(.viewer-mode) .page-content {
 .viewer-content {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* flex-start, not center: .viewer-zoom-sizer matches container width at
+     zoom 1 (no visual difference either way) but grows wider once zoomed —
+     center-aligning an overflowing flex item is the classic asymmetric
+     "can't scroll to see the true left edge" bug, and it would also break
+     the zoom anchor math in viewer.js, which assumes scrollLeft:0 means the
+     sizer's left edge is flush with the container's left edge. */
+  align-items: flex-start;
   background: #000;
 }
 
@@ -95,4 +101,60 @@ body:not(.viewer-mode) .page-content {
 
 #pen-toggle.viewer-active-btn {
   color: var(--f7-theme-color);
+}
+
+/* Undo/clear only make sense while actively annotating — toggled by the
+   pen button via the .drawing class on the page root. */
+.viewer-page:not(.drawing) #undo-btn,
+.viewer-page:not(.drawing) #clear-btn {
+  display: none;
+}
+
+/* Zoom controls compete with drawing for taps/space, so hide them while
+   annotating (drawing already disables container scroll/pan anyway). */
+.viewer-page.drawing #zoom-controls {
+  display: none;
+}
+
+.viewer-zoom-controls {
+  position: absolute;
+  right: 12px;
+  bottom: calc(var(--f7-toolbar-height, 56px) + var(--f7-safe-area-bottom, 0px) + 16px);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(30, 30, 35, 0.85);
+}
+
+.viewer-zoom-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.viewer-zoom-btn + .viewer-zoom-btn {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Sizer holds the real (zoomed) layout box so the scroll container's
+   overflow calculation matches what's on screen; the layer inside it is
+   what actually gets CSS-scaled. flex-shrink:0 for the same reason as
+   .viewer-page-wrap above — .viewer-content is a flex column with
+   overflow:auto, which drops the default shrink-resistance. */
+.viewer-zoom-sizer {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.viewer-zoom-layer {
+  transform-origin: 0 0;
+  /* Establishes a BFC so the last page-wrap's margin-bottom is counted in
+     scrollHeight instead of collapsing through — otherwise baseHeight (used
+     to size .viewer-zoom-sizer) comes up a few px short. */
+  overflow: hidden;
 }

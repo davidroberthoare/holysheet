@@ -9,6 +9,9 @@ const DPR = window.devicePixelRatio || 1;
 const PEN_COLOR = '#e63946';
 const PEN_WIDTH_CSS = 3;
 const SWIPE_THRESHOLD = 60;
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.25;
 
 function pageShellHtml() {
   return `
@@ -24,6 +27,10 @@ function pageShellHtml() {
         </div>
       </div>
       <div class="page-content viewer-content" id="viewer-pages"></div>
+      <div class="viewer-zoom-controls" id="zoom-controls">
+        <a href="#" class="link viewer-zoom-btn" id="zoom-in-btn"><i class="icon f7-icons">plus</i></a>
+        <a href="#" class="link viewer-zoom-btn" id="zoom-out-btn"><i class="icon f7-icons">minus</i></a>
+      </div>
       <div class="toolbar toolbar-bottom viewer-toolbar" id="viewer-toolbar">
         <div class="toolbar-inner">
           <a href="#" class="link song-nav" id="prev-song-btn"><i class="icon f7-icons">chevron_left</i></a>
@@ -61,9 +68,9 @@ function makePageEl(devW, devH, cssW, cssH) {
   return { wrapper, canvas, annoCanvas };
 }
 
-async function renderSong(container, sheet, onPageReady) {
-  container.innerHTML = '';
-  const cssWidth = container.clientWidth;
+async function renderSong(scrollContainer, layerEl, sheet, onPageReady) {
+  layerEl.innerHTML = '';
+  const cssWidth = scrollContainer.clientWidth;
 
   if (sheet.fileType === 'pdf') {
     const buf = await sheet.blob.arrayBuffer();
@@ -73,7 +80,7 @@ async function renderSong(container, sheet, onPageReady) {
       const unscaled = page.getViewport({ scale: 1 });
       const viewport = page.getViewport({ scale: (cssWidth / unscaled.width) * DPR });
       const { wrapper, canvas, annoCanvas } = makePageEl(viewport.width, viewport.height, cssWidth, viewport.height / DPR);
-      container.appendChild(wrapper);
+      layerEl.appendChild(wrapper);
       // eslint-disable-next-line no-await-in-loop
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
       // eslint-disable-next-line no-await-in-loop
@@ -84,7 +91,7 @@ async function renderSong(container, sheet, onPageReady) {
     const scale = cssWidth / bitmap.width;
     const cssHeight = bitmap.height * scale;
     const { wrapper, canvas, annoCanvas } = makePageEl(cssWidth * DPR, cssHeight * DPR, cssWidth, cssHeight);
-    container.appendChild(wrapper);
+    layerEl.appendChild(wrapper);
     canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     await onPageReady({ pageNum: 1, wrapper, annoCanvas });
   }
@@ -178,6 +185,9 @@ async function initViewer(page, songIds, startIndex) {
     currentPages: [],
     sheet: null,
     cancelled: false,
+    zoom: 1,
+    baseWidth: 0,
+    baseHeight: 0,
   };
   page.viewerState = state;
   document.body.classList.add('viewer-mode');
@@ -189,6 +199,15 @@ async function initViewer(page, songIds, startIndex) {
   const clearBtn = page.el.querySelector('#clear-btn');
   const prevBtn = page.el.querySelector('#prev-song-btn');
   const nextBtn = page.el.querySelector('#next-song-btn');
+  const zoomInBtn = page.el.querySelector('#zoom-in-btn');
+  const zoomOutBtn = page.el.querySelector('#zoom-out-btn');
+
+  const zoomSizer = document.createElement('div');
+  zoomSizer.className = 'viewer-zoom-sizer';
+  const zoomLayer = document.createElement('div');
+  zoomLayer.className = 'viewer-zoom-layer';
+  zoomSizer.appendChild(zoomLayer);
+  container.appendChild(zoomSizer);
 
   if (songIds.length <= 1) {
     page.el.querySelector('#viewer-toolbar').classList.add('single-mode');
@@ -196,8 +215,43 @@ async function initViewer(page, songIds, startIndex) {
 
   function applyDrawMode() {
     penBtn.classList.toggle('viewer-active-btn', state.drawMode);
-    container.style.overflowY = state.drawMode ? 'hidden' : 'auto';
+    page.el.classList.toggle('drawing', state.drawMode);
+    container.style.overflow = state.drawMode ? 'hidden' : 'auto';
     state.currentPages.forEach((p) => setPageDrawMode(p, state.drawMode));
+  }
+
+  // Keeps the content under (anchorX, anchorY) fixed on screen while the
+  // zoom level changes, so pinch/button zoom feels anchored rather than
+  // always re-centering on the top-left corner.
+  function applyZoom(targetZoom, anchorX, anchorY) {
+    if (!state.baseWidth) return;
+    const clamped = Math.min(Math.max(targetZoom, ZOOM_MIN), ZOOM_MAX);
+    const rect = container.getBoundingClientRect();
+    const cx = anchorX !== undefined ? anchorX : rect.left + rect.width / 2;
+    const cy = anchorY !== undefined ? anchorY : rect.top + rect.height / 2;
+    const localX = (cx - rect.left + container.scrollLeft) / state.zoom;
+    const localY = (cy - rect.top + container.scrollTop) / state.zoom;
+    state.zoom = clamped;
+    zoomLayer.style.transform = `scale(${clamped})`;
+    zoomSizer.style.width = `${state.baseWidth * clamped}px`;
+    zoomSizer.style.height = `${state.baseHeight * clamped}px`;
+    container.scrollLeft = localX * clamped - (cx - rect.left);
+    container.scrollTop = localY * clamped - (cy - rect.top);
+  }
+
+  function resetZoomForSong() {
+    state.zoom = 1;
+    // zoomLayer must be pinned to the base (unscaled) size — left as width:auto
+    // it stretches to fill zoomSizer's already-scaled width, and then
+    // transform:scale() compounds on top of that instead of scaling from
+    // the true base size.
+    zoomLayer.style.width = `${state.baseWidth}px`;
+    zoomLayer.style.height = `${state.baseHeight}px`;
+    zoomLayer.style.transform = 'scale(1)';
+    zoomSizer.style.width = `${state.baseWidth}px`;
+    zoomSizer.style.height = `${state.baseHeight}px`;
+    container.scrollLeft = 0;
+    container.scrollTop = 0;
   }
 
   async function loadSong(index) {
@@ -208,7 +262,7 @@ async function initViewer(page, songIds, startIndex) {
 
     if (!sheet) {
       titleEl.textContent = 'Sheet not found';
-      container.innerHTML = '';
+      zoomLayer.innerHTML = '';
       state.currentPages = [];
       return;
     }
@@ -217,7 +271,7 @@ async function initViewer(page, songIds, startIndex) {
     state.currentPages = [];
     titleEl.textContent = songIds.length > 1 ? `${index + 1}/${songIds.length} · ${sheet.title}` : sheet.title;
 
-    await renderSong(container, sheet, async ({ pageNum, wrapper, annoCanvas }) => {
+    await renderSong(container, zoomLayer, sheet, async ({ pageNum, wrapper, annoCanvas }) => {
       if (state.cancelled) return;
       const record = await getPageAnnotation(sheetId, pageNum);
       const pageInfo = { pageNum, wrapper, annoCanvas, strokes: record ? record.strokes : [] };
@@ -226,6 +280,11 @@ async function initViewer(page, songIds, startIndex) {
       wireDrawing(pageInfo, state, sheetId);
       setPageDrawMode(pageInfo, state.drawMode);
     });
+    if (state.cancelled) return;
+
+    state.baseWidth = container.clientWidth;
+    state.baseHeight = zoomLayer.scrollHeight;
+    resetZoomForSong();
   }
 
   function goTo(index) {
@@ -268,6 +327,15 @@ async function initViewer(page, songIds, startIndex) {
     goTo(state.index + 1);
   });
 
+  zoomInBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    applyZoom(state.zoom + ZOOM_STEP);
+  });
+  zoomOutBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    applyZoom(state.zoom - ZOOM_STEP);
+  });
+
   function onKeydown(e) {
     if (state.drawMode) return;
     if (e.key === 'ArrowLeft') goTo(state.index - 1);
@@ -279,13 +347,18 @@ async function initViewer(page, songIds, startIndex) {
   let touchStartX = null;
   let touchStartY = null;
   function onTouchStart(e) {
-    if (state.drawMode) return;
+    // Multi-touch means a pinch gesture, not a song-swipe — bail so a
+    // finger lifting mid-pinch can't be mistaken for a swipe.
+    if (state.drawMode || e.touches.length !== 1) {
+      touchStartX = null;
+      return;
+    }
     const t = e.touches[0];
     touchStartX = t.clientX;
     touchStartY = t.clientY;
   }
   function onTouchEnd(e) {
-    if (state.drawMode || touchStartX === null) return;
+    if (state.drawMode || touchStartX === null || e.touches.length !== 0) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - touchStartX;
     const dy = t.clientY - touchStartY;
@@ -298,6 +371,45 @@ async function initViewer(page, songIds, startIndex) {
   container.addEventListener('touchend', onTouchEnd, { passive: true });
   page.viewerTouchHandlers = { container, onTouchStart, onTouchEnd };
 
+  // Two-finger pinch-to-zoom, anchored at the gesture midpoint.
+  const activePointers = new Map();
+  let pinch = null;
+
+  function pointerDistance(p1, p2) {
+    return Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY);
+  }
+
+  function onPointerDown(e) {
+    if (state.drawMode || e.pointerType !== 'touch') return;
+    activePointers.set(e.pointerId, e);
+    if (activePointers.size === 2) {
+      const pts = Array.from(activePointers.values());
+      pinch = { startDist: pointerDistance(pts[0], pts[1]), startZoom: state.zoom };
+    }
+  }
+  function onPointerMove(e) {
+    if (!activePointers.has(e.pointerId)) return;
+    activePointers.set(e.pointerId, e);
+    if (activePointers.size === 2 && pinch) {
+      const pts = Array.from(activePointers.values());
+      const dist = pointerDistance(pts[0], pts[1]);
+      const midX = (pts[0].clientX + pts[1].clientX) / 2;
+      const midY = (pts[0].clientY + pts[1].clientY) / 2;
+      applyZoom(pinch.startZoom * (dist / pinch.startDist), midX, midY);
+      e.preventDefault();
+    }
+  }
+  function onPointerEnd(e) {
+    activePointers.delete(e.pointerId);
+    if (activePointers.size < 2) pinch = null;
+  }
+  container.addEventListener('pointerdown', onPointerDown);
+  container.addEventListener('pointermove', onPointerMove);
+  container.addEventListener('pointerup', onPointerEnd);
+  container.addEventListener('pointercancel', onPointerEnd);
+  page.viewerPointerHandlers = { container, onPointerDown, onPointerMove, onPointerEnd };
+
+  applyDrawMode();
   await loadSong(state.index);
 }
 
@@ -309,6 +421,13 @@ function cleanupViewer(event, page) {
     const { container, onTouchStart, onTouchEnd } = page.viewerTouchHandlers;
     container.removeEventListener('touchstart', onTouchStart);
     container.removeEventListener('touchend', onTouchEnd);
+  }
+  if (page.viewerPointerHandlers) {
+    const { container, onPointerDown, onPointerMove, onPointerEnd } = page.viewerPointerHandlers;
+    container.removeEventListener('pointerdown', onPointerDown);
+    container.removeEventListener('pointermove', onPointerMove);
+    container.removeEventListener('pointerup', onPointerEnd);
+    container.removeEventListener('pointercancel', onPointerEnd);
   }
 }
 
