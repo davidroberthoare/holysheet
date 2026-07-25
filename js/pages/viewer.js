@@ -405,6 +405,7 @@ async function initViewer(page, songIds, startIndex) {
 
   function goTo(index) {
     if (index < 0 || index >= state.songIds.length) return;
+    stopAutoScroll();
     loadSong(index);
   }
 
