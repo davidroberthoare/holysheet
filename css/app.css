@@ -53,6 +53,24 @@ body:not(.viewer-mode) .page-content {
   padding-right: 18px !important;
 }
 
+/* Same fix as .corner-btn above: the play icon in the playlist editor's
+   sheet list was too small/tight a tap target on touch devices (registered
+   inconsistently). Fatten the surrounding .item-media container itself
+   (Framework7's default item-media is icon-sized, no padding) rather than
+   the icon glyph, and give it a pointer cursor + larger min tap area. The
+   title is also clickable (launches the same song) so give it a pointer
+   cursor too. */
+.editor-play {
+  min-width: 44px;
+  padding: 8px;
+  margin-left: -8px;
+  cursor: pointer;
+}
+
+.editor-title {
+  cursor: pointer;
+}
+
 /* ---------- Library / Playlists empty states ---------- */
 #empty-state,
 #editor-empty-state {

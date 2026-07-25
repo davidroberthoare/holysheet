@@ -163,10 +163,10 @@ function renderEditorList(el, sheetsById, sheetIds) {
       return `
         <li data-id="${id}">
           <div class="item-content">
-            <div class="item-media"><i class="icon f7-icons editor-play" data-id="${id}">play_fill</i></div>
+            <div class="item-media editor-play" data-id="${id}"><i class="icon f7-icons">play_fill</i></div>
             <div class="item-inner">
               <div class="item-title-row">
-                <div class="item-title">${title}</div>
+                <div class="item-title editor-title" data-id="${id}">${title}</div>
                 <div class="item-after"><i class="icon f7-icons editor-remove" data-id="${id}">minus_circle</i></div>
               </div>
             </div>
@@ -303,10 +303,10 @@ export const playlistEditorRoute = {
       });
 
       page.el.querySelector('#editor-sheet-list').addEventListener('click', async (e) => {
-        const playBtn = e.target.closest('.editor-play');
-        if (playBtn) {
+        const playTarget = e.target.closest('.editor-play, .editor-title');
+        if (playTarget) {
           e.preventDefault();
-          app.views.main.router.navigate(`/viewer/playlist/${playlistId}/?start=${playBtn.dataset.id}`);
+          app.views.main.router.navigate(`/viewer/playlist/${playlistId}/?start=${playTarget.dataset.id}`);
           return;
         }
         const removeBtn = e.target.closest('.editor-remove');
