@@ -230,3 +230,9 @@ body:not(.viewer-mode) .page-content {
      to size .viewer-zoom-sizer) comes up a few px short. */
   overflow: hidden;
 }
+
+
+#editor-sheet-list .item-media.editor-play {
+  justify-content: center;
+  min-width: 75px;
+}
