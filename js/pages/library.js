@@ -1,4 +1,4 @@
-import { listSheets, addSheet, renameSheet, deleteSheet } from '../storage/sheets.js';
+import { listSheets, addSheet, findDuplicateSheet, renameSheet, deleteSheet } from '../storage/sheets.js';
 import { removeSheetFromAllPlaylists } from '../storage/playlists.js';
 import { deleteAnnotationsForSheet } from '../storage/annotations.js';
 import { importSources } from '../import/index.js';
@@ -86,9 +86,15 @@ async function handleUpload(app, page) {
   }
   if (!picked.length) return;
 
+  const existing = await listSheets();
   for (const item of picked) {
+    if (findDuplicateSheet(existing, { title: item.title, size: item.blob.size })) {
+      app.toast.create({ text: `Skipped ${item.title}: already in library`, closeTimeout: 2500 }).open();
+      continue;
+    }
     try {
-      await addSheet(item);
+      const sheet = await addSheet(item);
+      existing.push(sheet);
     } catch (err) {
       app.toast.create({ text: `Skipped ${item.title}: ${err.message}`, closeTimeout: 2500 }).open();
     }
@@ -106,7 +112,7 @@ export const libraryRoute = {
         <div class="navbar-inner">
           <div class="title">Library</div>
           <div class="right">
-            <a href="#" class="link" id="upload-btn"><i class="icon f7-icons">square_arrow_up</i></a>
+            <a href="#" class="link corner-btn" id="upload-btn"><i class="icon f7-icons">square_arrow_up</i></a>
           </div>
         </div>
       </div>

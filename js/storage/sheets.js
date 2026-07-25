@@ -11,7 +11,9 @@ export function inferFileType(mimeType) {
 }
 
 export function listSheets() {
-  return dbGetAll(STORES.sheets).then((sheets) => sheets.sort((a, b) => a.createdAt - b.createdAt));
+  return dbGetAll(STORES.sheets).then((sheets) =>
+    sheets.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
+  );
 }
 
 export function getSheet(id) {
@@ -28,6 +30,14 @@ export function addSheet({ id, title, mimeType, blob, createdAt }) {
     createdAt: createdAt || Date.now(),
   };
   return dbPut(STORES.sheets, sheet).then(() => sheet);
+}
+
+// Same file loaded twice detection: an exact (case-sensitive) title match
+// plus a matching blob size is treated as the same underlying file. Used by
+// both the regular upload picker and backup restore so neither can create a
+// second copy of a sheet that's already in the library.
+export function findDuplicateSheet(sheets, { id, title, size } = {}) {
+  return sheets.find((s) => s.id !== id && s.title === title && s.blob.size === size);
 }
 
 export function renameSheet(id, title) {

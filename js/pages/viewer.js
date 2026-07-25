@@ -12,6 +12,8 @@ const SWIPE_THRESHOLD = 60;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
+const AUTOSCROLL_PX_PER_SEC_PER_UNIT = 18;
+const AUTOSCROLL_RESUME_DELAY_MS = 1200;
 
 function pageShellHtml() {
   return `
@@ -19,10 +21,10 @@ function pageShellHtml() {
       <div class="navbar">
         <div class="navbar-bg"></div>
         <div class="navbar-inner">
-          <div class="left"><a href="#" class="link back"><i class="icon icon-back"></i></a></div>
+          <div class="left"><a href="#" class="link back corner-btn"><i class="icon icon-back"></i></a></div>
           <div class="title" id="viewer-title">Loading…</div>
           <div class="right">
-            <a href="#" class="link" id="pen-toggle"><i class="icon f7-icons">pencil</i></a>
+            <a href="#" class="link corner-btn" id="pen-toggle"><i class="icon f7-icons">pencil</i></a>
           </div>
         </div>
       </div>
@@ -31,12 +33,16 @@ function pageShellHtml() {
         <a href="#" class="link viewer-zoom-btn" id="zoom-in-btn"><i class="icon f7-icons">plus</i></a>
         <a href="#" class="link viewer-zoom-btn" id="zoom-out-btn"><i class="icon f7-icons">minus</i></a>
       </div>
+      <div class="viewer-autoscroll-controls" id="autoscroll-controls">
+        <a href="#" class="link viewer-zoom-btn" id="autoscroll-toggle"><i class="icon f7-icons">play_fill</i></a>
+        <input type="range" id="autoscroll-speed" min="1" max="10" step="1" value="4" />
+      </div>
       <div class="toolbar toolbar-bottom viewer-toolbar" id="viewer-toolbar">
         <div class="toolbar-inner">
-          <a href="#" class="link song-nav" id="prev-song-btn"><i class="icon f7-icons">chevron_left</i></a>
+          <a href="#" class="link song-nav corner-btn" id="prev-song-btn"><i class="icon f7-icons">chevron_left</i></a>
           <a href="#" class="link" id="undo-btn"><i class="icon f7-icons">arrow_uturn_left</i></a>
           <a href="#" class="link" id="clear-btn"><i class="icon f7-icons">trash</i></a>
-          <a href="#" class="link song-nav" id="next-song-btn"><i class="icon f7-icons">chevron_right</i></a>
+          <a href="#" class="link song-nav corner-btn" id="next-song-btn"><i class="icon f7-icons">chevron_right</i></a>
         </div>
       </div>
     </div>
@@ -201,6 +207,26 @@ async function initViewer(page, songIds, startIndex) {
   const nextBtn = page.el.querySelector('#next-song-btn');
   const zoomInBtn = page.el.querySelector('#zoom-in-btn');
   const zoomOutBtn = page.el.querySelector('#zoom-out-btn');
+  const autoscrollToggle = page.el.querySelector('#autoscroll-toggle');
+  const autoscrollSpeed = page.el.querySelector('#autoscroll-speed');
+
+  const autoScroll = {
+    enabled: false,
+    pausedForUser: false,
+    speed: Number(autoscrollSpeed.value),
+    rafId: null,
+    lastTs: null,
+    resumeTimer: null,
+    // Float accumulator tracked separately from container.scrollTop (which the
+    // browser rounds to an integer on every read/write) — without this, small
+    // per-frame deltas (e.g. ~1px at default speed) get silently rounded away
+    // on the read-back and the page never advances smoothly, producing a
+    // stutter/stall instead of a steady scroll.
+    virtualScrollTop: 0,
+    lastAutoScrollTop: null,
+    programmatic: false,
+    programmaticResetTimer: null,
+  };
 
   const zoomSizer = document.createElement('div');
   zoomSizer.className = 'viewer-zoom-sizer';
@@ -218,7 +244,95 @@ async function initViewer(page, songIds, startIndex) {
     page.el.classList.toggle('drawing', state.drawMode);
     container.style.overflow = state.drawMode ? 'hidden' : 'auto';
     state.currentPages.forEach((p) => setPageDrawMode(p, state.drawMode));
+    if (state.drawMode) stopAutoScroll();
   }
+
+  // Any scrollTop/scrollLeft assignment we make ourselves (auto-scroll,
+  // zoom, song change) also fires the 'scroll' event — mark a short window
+  // so the user-scroll listener below doesn't mistake it for a manual
+  // scroll and pause auto-scroll unnecessarily.
+  function markProgrammaticScroll() {
+    autoScroll.programmatic = true;
+    clearTimeout(autoScroll.programmaticResetTimer);
+    autoScroll.programmaticResetTimer = setTimeout(() => {
+      autoScroll.programmatic = false;
+    }, 50);
+  }
+
+  function updateAutoscrollButton() {
+    autoscrollToggle.querySelector('i').textContent = autoScroll.enabled ? 'pause_fill' : 'play_fill';
+    autoscrollToggle.classList.toggle('viewer-active-btn', autoScroll.enabled);
+  }
+
+  function autoScrollFrame(ts) {
+    if (!autoScroll.enabled) {
+      autoScroll.rafId = null;
+      return;
+    }
+    if (autoScroll.lastTs === null) {
+      autoScroll.lastTs = ts;
+      autoScroll.virtualScrollTop = container.scrollTop;
+    }
+    const dt = ts - autoScroll.lastTs;
+    autoScroll.lastTs = ts;
+    if (!autoScroll.pausedForUser && !state.drawMode) {
+      autoScroll.virtualScrollTop += (autoScroll.speed * AUTOSCROLL_PX_PER_SEC_PER_UNIT * dt) / 1000;
+      const target = Math.round(autoScroll.virtualScrollTop);
+      // Only touch the DOM when the rounded pixel actually moves — writing
+      // scrollTop every single frame (even to the same value) forces a
+      // layout/paint each time, which is what was causing the stutter on
+      // slower hardware.
+      if (target !== container.scrollTop) {
+        container.scrollTop = target;
+      }
+      autoScroll.lastAutoScrollTop = container.scrollTop;
+    }
+    autoScroll.rafId = requestAnimationFrame(autoScrollFrame);
+  }
+
+  function startAutoScroll() {
+    autoScroll.enabled = true;
+    autoScroll.pausedForUser = false;
+    autoScroll.lastTs = null;
+    autoScroll.lastAutoScrollTop = null;
+    updateAutoscrollButton();
+    if (!autoScroll.rafId) autoScroll.rafId = requestAnimationFrame(autoScrollFrame);
+  }
+
+  function stopAutoScroll() {
+    autoScroll.enabled = false;
+    if (autoScroll.rafId) {
+      cancelAnimationFrame(autoScroll.rafId);
+      autoScroll.rafId = null;
+    }
+    clearTimeout(autoScroll.resumeTimer);
+    updateAutoscrollButton();
+  }
+
+  // A real user scroll gesture pauses auto-scroll without turning it off —
+  // it quietly re-engages a moment after the user stops interacting. Scroll
+  // events fired by our own rAF loop are recognized cheaply (by comparing
+  // against the last value we set) rather than via a per-frame timer, which
+  // was itself adding avoidable per-frame allocation overhead.
+  function onContainerScroll() {
+    if (!autoScroll.enabled) return;
+    // autoScroll.programmatic covers the infrequent zoom/song-change resets
+    // (still timer-based — cheap at that call rate); lastAutoScrollTop covers
+    // the per-frame auto-scroll writes without needing a timer for each one.
+    if (autoScroll.programmatic) return;
+    if (autoScroll.lastAutoScrollTop !== null && Math.abs(container.scrollTop - autoScroll.lastAutoScrollTop) < 1) {
+      return;
+    }
+    autoScroll.pausedForUser = true;
+    clearTimeout(autoScroll.resumeTimer);
+    autoScroll.resumeTimer = setTimeout(() => {
+      autoScroll.pausedForUser = false;
+      // Rebase the accumulator from wherever the user actually left the
+      // scroll position, rather than resuming from the pre-pause value.
+      autoScroll.lastTs = null;
+    }, AUTOSCROLL_RESUME_DELAY_MS);
+  }
+  container.addEventListener('scroll', onContainerScroll, { passive: true });
 
   // Keeps the content under (anchorX, anchorY) fixed on screen while the
   // zoom level changes, so pinch/button zoom feels anchored rather than
@@ -235,6 +349,7 @@ async function initViewer(page, songIds, startIndex) {
     zoomLayer.style.transform = `scale(${clamped})`;
     zoomSizer.style.width = `${state.baseWidth * clamped}px`;
     zoomSizer.style.height = `${state.baseHeight * clamped}px`;
+    markProgrammaticScroll();
     container.scrollLeft = localX * clamped - (cx - rect.left);
     container.scrollTop = localY * clamped - (cy - rect.top);
   }
@@ -250,6 +365,7 @@ async function initViewer(page, songIds, startIndex) {
     zoomLayer.style.transform = 'scale(1)';
     zoomSizer.style.width = `${state.baseWidth}px`;
     zoomSizer.style.height = `${state.baseHeight}px`;
+    markProgrammaticScroll();
     container.scrollLeft = 0;
     container.scrollTop = 0;
   }
@@ -336,6 +452,16 @@ async function initViewer(page, songIds, startIndex) {
     applyZoom(state.zoom - ZOOM_STEP);
   });
 
+  autoscrollToggle.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (state.drawMode) return;
+    if (autoScroll.enabled) stopAutoScroll();
+    else startAutoScroll();
+  });
+  autoscrollSpeed.addEventListener('input', () => {
+    autoScroll.speed = Number(autoscrollSpeed.value);
+  });
+
   function onKeydown(e) {
     if (state.drawMode) return;
     if (e.key === 'ArrowLeft') goTo(state.index - 1);
@@ -408,6 +534,7 @@ async function initViewer(page, songIds, startIndex) {
   container.addEventListener('pointerup', onPointerEnd);
   container.addEventListener('pointercancel', onPointerEnd);
   page.viewerPointerHandlers = { container, onPointerDown, onPointerMove, onPointerEnd };
+  page.viewerAutoScroll = { container, autoScroll, onContainerScroll, stopAutoScroll };
 
   applyDrawMode();
   await loadSong(state.index);
@@ -428,6 +555,12 @@ function cleanupViewer(event, page) {
     container.removeEventListener('pointermove', onPointerMove);
     container.removeEventListener('pointerup', onPointerEnd);
     container.removeEventListener('pointercancel', onPointerEnd);
+  }
+  if (page.viewerAutoScroll) {
+    const { container, autoScroll, onContainerScroll, stopAutoScroll } = page.viewerAutoScroll;
+    stopAutoScroll();
+    clearTimeout(autoScroll.programmaticResetTimer);
+    container.removeEventListener('scroll', onContainerScroll);
   }
 }
 

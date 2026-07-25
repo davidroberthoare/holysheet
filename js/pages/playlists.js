@@ -98,7 +98,7 @@ export const playlistsRoute = {
         <div class="navbar-inner">
           <div class="title">Playlists</div>
           <div class="right">
-            <a href="#" class="link" id="new-playlist-btn"><i class="icon f7-icons">plus</i></a>
+            <a href="#" class="link corner-btn" id="new-playlist-btn"><i class="icon f7-icons">plus</i></a>
           </div>
         </div>
       </div>
@@ -163,6 +163,7 @@ function renderEditorList(el, sheetsById, sheetIds) {
       return `
         <li data-id="${id}">
           <div class="item-content">
+            <div class="item-media"><i class="icon f7-icons editor-play" data-id="${id}">play_fill</i></div>
             <div class="item-inner">
               <div class="item-title-row">
                 <div class="item-title">${title}</div>
@@ -212,9 +213,9 @@ function openAddSheetsPopup(app, page, playlistId, currentIds) {
               <div class="navbar">
                 <div class="navbar-bg"></div>
                 <div class="navbar-inner">
-                  <div class="left"><a href="#" class="link popup-close">Cancel</a></div>
+                  <div class="left"><a href="#" class="link popup-close corner-btn">Cancel</a></div>
                   <div class="title">Add Sheets</div>
-                  <div class="right"><a href="#" class="link" id="add-sheets-confirm">Add</a></div>
+                  <div class="right"><a href="#" class="link corner-btn" id="add-sheets-confirm">Add</a></div>
                 </div>
               </div>
               <div class="page-content">
@@ -248,11 +249,11 @@ export const playlistEditorRoute = {
       <div class="navbar">
         <div class="navbar-bg"></div>
         <div class="navbar-inner">
-          <div class="left"><a href="#" class="link back"><i class="icon icon-back"></i><span class="if-not-md">Back</span></a></div>
+          <div class="left"><a href="#" class="link back corner-btn"><i class="icon icon-back"></i><span class="if-not-md">Back</span></a></div>
           <div class="title">Playlist</div>
           <div class="right">
-            <a href="#" class="link" id="play-btn"><i class="icon f7-icons">play_fill</i></a>
-            <a href="#" class="link" id="add-sheets-btn"><i class="icon f7-icons">plus</i></a>
+            <a href="#" class="link corner-btn" id="play-btn"><i class="icon f7-icons">play_fill</i></a>
+            <a href="#" class="link corner-btn" id="add-sheets-btn"><i class="icon f7-icons">plus</i></a>
           </div>
         </div>
       </div>
@@ -302,12 +303,20 @@ export const playlistEditorRoute = {
       });
 
       page.el.querySelector('#editor-sheet-list').addEventListener('click', async (e) => {
+        const playBtn = e.target.closest('.editor-play');
+        if (playBtn) {
+          e.preventDefault();
+          app.views.main.router.navigate(`/viewer/playlist/${playlistId}/?start=${playBtn.dataset.id}`);
+          return;
+        }
         const removeBtn = e.target.closest('.editor-remove');
         if (!removeBtn) return;
         e.preventDefault();
-        const current = await getPlaylist(playlistId);
-        await setPlaylistSheets(playlistId, current.sheetIds.filter((id) => id !== removeBtn.dataset.id));
-        await refreshEditor(page, playlistId);
+        app.dialog.confirm('Remove this sheet from the playlist?', 'Remove Sheet', async () => {
+          const current = await getPlaylist(playlistId);
+          await setPlaylistSheets(playlistId, current.sheetIds.filter((id) => id !== removeBtn.dataset.id));
+          await refreshEditor(page, playlistId);
+        });
       });
     },
     pageBeforeOut(event, page) {

@@ -1,7 +1,76 @@
 import { APP_VERSION } from '../version.js';
 import { isCachingEnabled, enableCaching, disableCaching } from '../caching.js';
-import { exportLibrary, downloadExport, importLibrary } from '../export/backup.js';
-import { setActiveTab } from '../util.js';
+import { exportLibrary, exportPlaylist, downloadExport, importLibrary } from '../export/backup.js';
+import { listPlaylists } from '../storage/playlists.js';
+import { escapeHtml, setActiveTab } from '../util.js';
+
+function slugify(name) {
+  return (
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'playlist'
+  );
+}
+
+function openExportPlaylistPicker(app) {
+  listPlaylists().then((playlists) => {
+    const itemsHtml = playlists.length
+      ? playlists
+          .map(
+            (p) => `
+        <li>
+          <a href="#" class="item-link item-content export-playlist-item" data-id="${p.id}">
+            <div class="item-inner"><div class="item-title">${escapeHtml(p.name)}</div></div>
+          </a>
+        </li>`
+          )
+          .join('')
+      : `<li><div class="item-content"><div class="item-inner"><div class="item-title">No playlists yet.</div></div></div></li>`;
+
+    const popup = app.popup.create({
+      content: `
+        <div class="popup">
+          <div class="view">
+            <div class="page">
+              <div class="navbar">
+                <div class="navbar-bg"></div>
+                <div class="navbar-inner">
+                  <div class="left"><a href="#" class="link popup-close corner-btn">Cancel</a></div>
+                  <div class="title">Export Playlist</div>
+                </div>
+              </div>
+              <div class="page-content">
+                <div class="list" id="export-playlist-list">${itemsHtml}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+    });
+
+    popup.el.querySelector('#export-playlist-list').addEventListener('click', async (e) => {
+      const item = e.target.closest('.export-playlist-item');
+      if (!item) return;
+      e.preventDefault();
+      const playlist = playlists.find((p) => p.id === item.dataset.id);
+      popup.close();
+      app.preloader.show();
+      try {
+        const blob = await exportPlaylist(item.dataset.id);
+        const name = `holysheet-${slugify(playlist.name)}-${new Date().toISOString().slice(0, 10)}.zip`;
+        downloadExport(blob, name);
+      } catch (err) {
+        app.dialog.alert(err.message, 'Export Failed');
+      } finally {
+        app.preloader.hide();
+      }
+    });
+
+    popup.open();
+  });
+}
 
 export const settingsRoute = {
   path: '/settings/',
@@ -41,6 +110,11 @@ export const settingsRoute = {
             <li>
               <a href="#" class="item-link item-content" id="export-btn">
                 <div class="item-inner"><div class="item-title">Export library (.zip)</div></div>
+              </a>
+            </li>
+            <li>
+              <a href="#" class="item-link item-content" id="export-playlist-btn">
+                <div class="item-inner"><div class="item-title">Export playlist (.zip)</div></div>
               </a>
             </li>
             <li>
@@ -93,6 +167,11 @@ export const settingsRoute = {
         }
       });
 
+      page.el.querySelector('#export-playlist-btn').addEventListener('click', (e) => {
+        e.preventDefault();
+        openExportPlaylistPicker(app);
+      });
+
       page.el.querySelector('#import-btn').addEventListener('click', (e) => {
         e.preventDefault();
         const input = document.createElement('input');
@@ -104,7 +183,11 @@ export const settingsRoute = {
           app.preloader.show();
           try {
             const result = await importLibrary(file);
-            app.dialog.alert(`Imported ${result.sheets} sheet(s), ${result.playlists} playlist(s).`, 'Import Complete');
+            const skippedNote = result.skipped ? ` Skipped ${result.skipped} duplicate sheet(s) already in your library.` : '';
+            app.dialog.alert(
+              `Imported ${result.sheets} sheet(s), ${result.playlists} playlist(s).${skippedNote}`,
+              'Import Complete'
+            );
           } catch (err) {
             app.dialog.alert(err.message, 'Import Failed');
           } finally {

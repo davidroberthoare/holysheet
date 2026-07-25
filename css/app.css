@@ -35,6 +35,24 @@ body:not(.viewer-mode) .page-content {
   display: none;
 }
 
+/* Wider tap target for icon-only buttons pinned at page/screen corners
+   (navbar left/right, toolbar-bottom song-nav ends, popup cancel/confirm) —
+   fattens the clickable container only, icon glyph size is untouched.
+   Added for a device with poor edge touch sensitivity, where the vendor
+   default (12px padding / 48px min-width) is too small to hit reliably right
+   at the physical bezel. !important is load-bearing here, not a shortcut:
+   Framework7's md theme has a higher-specificity icon-only-button rule
+   (`.md .navbar a:has(i:only-child){width:48px;min-width:0}`, specificity
+   0,3,2) that pins these buttons to a fixed 48px and otherwise silently wins
+   over any same-shape class selector we add (verified via computed style in
+   testing — padding applied but min-width/width didn't budge without this). */
+.corner-btn {
+  width: auto !important;
+  min-width: 56px !important;
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+}
+
 /* ---------- Library / Playlists empty states ---------- */
 #empty-state,
 #editor-empty-state {
@@ -116,6 +134,42 @@ body:not(.viewer-mode) .page-content {
   display: none;
 }
 
+/* Auto-scroll competes with drawing the same way zoom does (drawing
+   already turns auto-scroll off via applyDrawMode). */
+.viewer-page.drawing #autoscroll-controls {
+  display: none;
+}
+
+.viewer-autoscroll-controls {
+  position: absolute;
+  left: 12px;
+  bottom: calc(var(--f7-toolbar-height, 56px) + var(--f7-safe-area-bottom, 0px) + 16px);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 22px;
+  background: rgba(30, 30, 35, 0.85);
+}
+
+/* Wider than a plain .viewer-zoom-btn — same reasoning as .corner-btn above,
+   just for the floating (non-navbar) viewer controls. Height is left alone
+   so the panel's own layout math (autoscroll-controls row height, zoom
+   panel's stacked buttons) doesn't shift. */
+#autoscroll-toggle.viewer-zoom-btn {
+  width: 60px;
+  height: 44px;
+}
+
+#autoscroll-toggle.viewer-active-btn {
+  color: var(--f7-theme-color);
+}
+
+#autoscroll-speed {
+  width: 80px;
+}
+
 .viewer-zoom-controls {
   position: absolute;
   right: 12px;
@@ -129,7 +183,7 @@ body:not(.viewer-mode) .page-content {
 }
 
 .viewer-zoom-btn {
-  width: 44px;
+  width: 60px;
   height: 44px;
   display: flex;
   align-items: center;
