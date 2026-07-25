@@ -1,0 +1,22 @@
+# The app's own cache-busting (js/version.js -> sw.js's versioned
+# CACHE_NAME, and the Settings caching toggle) only works if the browser —
+# and Cloudflare, which fronts this host — actually re-fetch index.html and
+# the app's JS/CSS instead of serving a stale copy out of the browser's own
+# HTTP disk cache. That layer is completely separate from the Service
+# Worker's Cache Storage: unregistering the SW and clearing its caches (what
+# the Settings toggle does) has zero effect on it. Without this, a version
+# bump can sit invisible on disk forever, because the browser never even
+# fetches the new bytes to notice anything changed.
+#
+# no-cache (not no-store) still lets responses be cached, but forces a
+# revalidation round-trip (conditional GET) before reuse, so an unchanged
+# file is still a cheap 304 rather than a full re-download every load.
+<IfModule mod_headers.c>
+  <FilesMatch "^(index\.html|sw\.js|manifest\.json)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  <FilesMatch "\.(js|mjs|css)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>
