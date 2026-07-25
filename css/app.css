@@ -185,7 +185,7 @@ body:not(.viewer-mode) .page-content {
 }
 
 #autoscroll-speed {
-  width: 80px;
+  width: 150px;
 }
 
 .viewer-zoom-controls {

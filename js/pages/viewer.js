@@ -35,7 +35,7 @@ function pageShellHtml() {
       </div>
       <div class="viewer-autoscroll-controls" id="autoscroll-controls">
         <a href="#" class="link viewer-zoom-btn" id="autoscroll-toggle"><i class="icon f7-icons">play_fill</i></a>
-        <input type="range" id="autoscroll-speed" min="1" max="10" step="1" value="4" />
+        <input type="range" id="autoscroll-speed" min="1" max="5" step="1" value="2" />
       </div>
       <div class="toolbar toolbar-bottom viewer-toolbar" id="viewer-toolbar">
         <div class="toolbar-inner">
