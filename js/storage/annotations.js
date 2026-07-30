@@ -12,7 +12,11 @@ export function listAnnotationsForSheet(sheetId) {
   return dbGetAllByIndex(STORES.annotations, 'sheetId', sheetId);
 }
 
-// Strokes are freehand pen paths only (v1 scope): [{ points: [[x,y], ...], color, width }, ...]
+// Strokes are freehand pen paths only (v1 scope): [{ points: [[x,y], ...], color, width }, ...].
+// Points/width are fractions of the page's own canvas size (0..1), not device pixels —
+// see normalizeStrokes/denormalizeStrokes in js/pages/viewer.js — so `normalized: true`
+// marks records written in that format. Older records predate this and lack the flag;
+// the viewer leaves those as-is rather than misconverting them.
 // Overwrites the full stroke list for a page — the viewer keeps its own in-memory
 // undo stack and calls this after each committed change.
 export function saveStrokes(sheetId, page, strokes) {
@@ -21,6 +25,7 @@ export function saveStrokes(sheetId, page, strokes) {
     sheetId,
     page,
     strokes,
+    normalized: true,
     updatedAt: Date.now(),
   };
   return dbPut(STORES.annotations, record).then(() => record);

@@ -139,78 +139,48 @@ body:not(.viewer-mode) .page-content {
   color: var(--f7-theme-color);
 }
 
-/* Undo/clear only make sense while actively annotating — toggled by the
-   pen button via the .drawing class on the page root. */
-.viewer-page:not(.drawing) #undo-btn,
-.viewer-page:not(.drawing) #clear-btn {
+/* The toolbar shows exactly one of these groups at a time, toggled by the
+   .drawing class the pen button puts on the page root: #edit-controls
+   (undo/clear) while annotating, #view-controls (zoom/autoscroll) otherwise
+   — they compete for the same taps/space and zoom/autoscroll would fight
+   with the drawing gesture anyway (drawMode already stops auto-scroll via
+   applyDrawMode). Prev/next song stay visible in both. */
+.viewer-page:not(.drawing) #edit-controls {
   display: none;
 }
 
-/* Zoom controls compete with drawing for taps/space, so hide them while
-   annotating (drawing already disables container scroll/pan anyway). */
-.viewer-page.drawing #zoom-controls {
+.viewer-page.drawing #view-controls {
   display: none;
 }
 
-/* Auto-scroll competes with drawing the same way zoom does (drawing
-   already turns auto-scroll off via applyDrawMode). */
-.viewer-page.drawing #autoscroll-controls {
-  display: none;
-}
-
-.viewer-autoscroll-controls {
-  position: absolute;
-  left: 12px;
-  bottom: calc(var(--f7-toolbar-height, 56px) + var(--f7-safe-area-bottom, 0px) + 16px);
-  z-index: 10;
+.viewer-toolbar-group {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px 4px 4px;
-  border-radius: 22px;
-  background: rgba(30, 30, 35, 0.85);
 }
 
-/* Wider than a plain .viewer-zoom-btn — same reasoning as .corner-btn above,
-   just for the floating (non-navbar) viewer controls. Height is left alone
-   so the panel's own layout math (autoscroll-controls row height, zoom
-   panel's stacked buttons) doesn't shift. */
-#autoscroll-toggle.viewer-zoom-btn {
-  width: 60px;
-  height: 44px;
+/* position:relative so #autoscroll-speed-value (the speed count) can be
+   pinned to a corner of the play/pause button instead of needing its own
+   separate box in an already-tight single-row toolbar. */
+.viewer-toolbar-btn {
+  position: relative;
+}
+
+.viewer-speed-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 3px;
+  min-width: 12px;
+  padding: 0 2px;
+  border-radius: 6px;
+  /* background: rgba(0, 0, 0, 0.55); */
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  pointer-events: none;
 }
 
 #autoscroll-toggle.viewer-active-btn {
   color: var(--f7-theme-color);
-}
-
-#autoscroll-speed {
-  width: 150px;
-}
-
-.viewer-zoom-controls {
-  position: absolute;
-  right: 12px;
-  bottom: calc(var(--f7-toolbar-height, 56px) + var(--f7-safe-area-bottom, 0px) + 16px);
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  border-radius: 10px;
-  overflow: hidden;
-  background: rgba(30, 30, 35, 0.85);
-}
-
-.viewer-zoom-btn {
-  width: 60px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-}
-
-.viewer-zoom-btn + .viewer-zoom-btn {
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 /* Sizer holds the real (zoomed) layout box so the scroll container's

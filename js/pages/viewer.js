@@ -12,8 +12,11 @@ const SWIPE_THRESHOLD = 60;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
-const AUTOSCROLL_PX_PER_SEC_PER_UNIT = 18;
+const AUTOSCROLL_PX_PER_SEC_PER_UNIT = 9;
 const AUTOSCROLL_RESUME_DELAY_MS = 1200;
+const AUTOSCROLL_SPEED_MIN = 1;
+const AUTOSCROLL_SPEED_MAX = 5;
+const AUTOSCROLL_SPEED_DEFAULT = 2;
 
 function pageShellHtml() {
   return `
@@ -29,19 +32,23 @@ function pageShellHtml() {
         </div>
       </div>
       <div class="page-content viewer-content" id="viewer-pages"></div>
-      <div class="viewer-zoom-controls" id="zoom-controls">
-        <a href="#" class="link viewer-zoom-btn" id="zoom-in-btn"><i class="icon f7-icons">plus</i></a>
-        <a href="#" class="link viewer-zoom-btn" id="zoom-out-btn"><i class="icon f7-icons">minus</i></a>
-      </div>
-      <div class="viewer-autoscroll-controls" id="autoscroll-controls">
-        <a href="#" class="link viewer-zoom-btn" id="autoscroll-toggle"><i class="icon f7-icons">play_fill</i></a>
-        <input type="range" id="autoscroll-speed" min="1" max="5" step="1" value="2" />
-      </div>
       <div class="toolbar toolbar-bottom viewer-toolbar" id="viewer-toolbar">
         <div class="toolbar-inner">
           <a href="#" class="link song-nav corner-btn" id="prev-song-btn"><i class="icon f7-icons">chevron_left</i></a>
-          <a href="#" class="link" id="undo-btn"><i class="icon f7-icons">arrow_uturn_left</i></a>
-          <a href="#" class="link" id="clear-btn"><i class="icon f7-icons">trash</i></a>
+          <div class="viewer-toolbar-group" id="view-controls">
+            <a href="#" class="link viewer-toolbar-btn" id="zoom-out-btn"><i class="icon f7-icons">zoom_out</i></a>
+            <a href="#" class="link viewer-toolbar-btn" id="zoom-in-btn"><i class="icon f7-icons">zoom_in</i></a>
+            <a href="#" class="link viewer-toolbar-btn" id="autoscroll-speed-down"><i class="icon f7-icons">minus</i></a>
+            <a href="#" class="link viewer-toolbar-btn" id="autoscroll-toggle">
+              <i class="icon f7-icons">play_fill</i>
+              <span class="viewer-speed-badge" id="autoscroll-speed-value">2</span>
+            </a>
+            <a href="#" class="link viewer-toolbar-btn" id="autoscroll-speed-up"><i class="icon f7-icons">plus</i></a>
+          </div>
+          <div class="viewer-toolbar-group" id="edit-controls">
+            <a href="#" class="link" id="undo-btn"><i class="icon f7-icons">arrow_uturn_left</i></a>
+            <a href="#" class="link" id="clear-btn"><i class="icon f7-icons">trash</i></a>
+          </div>
           <a href="#" class="link song-nav corner-btn" id="next-song-btn"><i class="icon f7-icons">chevron_right</i></a>
         </div>
       </div>
@@ -117,6 +124,25 @@ function drawStroke(ctx, stroke) {
   ctx.stroke();
 }
 
+// Stroke points/width are persisted as fractions (0..1) of the page's own canvas
+// size rather than device pixels, so annotations line up with the document content
+// regardless of the browser width/DPR they were drawn or later viewed under.
+function normalizeStrokes(strokes, canvasW, canvasH) {
+  return strokes.map((s) => ({
+    points: s.points.map(([x, y]) => [x / canvasW, y / canvasH]),
+    color: s.color,
+    width: s.width / canvasW,
+  }));
+}
+
+function denormalizeStrokes(strokes, canvasW, canvasH) {
+  return strokes.map((s) => ({
+    points: s.points.map(([x, y]) => [x * canvasW, y * canvasH]),
+    color: s.color,
+    width: s.width * canvasW,
+  }));
+}
+
 function redrawAnnotations(pageInfo) {
   const ctx = pageInfo.annoCanvas.getContext('2d');
   ctx.clearRect(0, 0, pageInfo.annoCanvas.width, pageInfo.annoCanvas.height);
@@ -157,7 +183,7 @@ function wireDrawing(pageInfo, state, sheetId) {
     pageInfo.strokes.push(currentStroke);
     currentStroke = null;
     redrawAnnotations(pageInfo);
-    await saveStrokes(sheetId, pageInfo.pageNum, pageInfo.strokes);
+    await saveStrokes(sheetId, pageInfo.pageNum, normalizeStrokes(pageInfo.strokes, canvas.width, canvas.height));
   });
 
   canvas.addEventListener('pointercancel', () => {
@@ -208,12 +234,14 @@ async function initViewer(page, songIds, startIndex) {
   const zoomInBtn = page.el.querySelector('#zoom-in-btn');
   const zoomOutBtn = page.el.querySelector('#zoom-out-btn');
   const autoscrollToggle = page.el.querySelector('#autoscroll-toggle');
-  const autoscrollSpeed = page.el.querySelector('#autoscroll-speed');
+  const autoscrollSpeedDown = page.el.querySelector('#autoscroll-speed-down');
+  const autoscrollSpeedUp = page.el.querySelector('#autoscroll-speed-up');
+  const autoscrollSpeedValue = page.el.querySelector('#autoscroll-speed-value');
 
   const autoScroll = {
     enabled: false,
     pausedForUser: false,
-    speed: Number(autoscrollSpeed.value),
+    speed: AUTOSCROLL_SPEED_DEFAULT,
     rafId: null,
     lastTs: null,
     resumeTimer: null,
@@ -262,6 +290,10 @@ async function initViewer(page, songIds, startIndex) {
   function updateAutoscrollButton() {
     autoscrollToggle.querySelector('i').textContent = autoScroll.enabled ? 'pause_fill' : 'play_fill';
     autoscrollToggle.classList.toggle('viewer-active-btn', autoScroll.enabled);
+  }
+
+  function updateAutoscrollSpeedDisplay() {
+    autoscrollSpeedValue.textContent = autoScroll.speed;
   }
 
   function autoScrollFrame(ts) {
@@ -390,7 +422,11 @@ async function initViewer(page, songIds, startIndex) {
     await renderSong(container, zoomLayer, sheet, async ({ pageNum, wrapper, annoCanvas }) => {
       if (state.cancelled) return;
       const record = await getPageAnnotation(sheetId, pageNum);
-      const pageInfo = { pageNum, wrapper, annoCanvas, strokes: record ? record.strokes : [] };
+      let strokes = record ? record.strokes : [];
+      if (record && record.normalized) {
+        strokes = denormalizeStrokes(strokes, annoCanvas.width, annoCanvas.height);
+      }
+      const pageInfo = { pageNum, wrapper, annoCanvas, strokes };
       state.currentPages.push(pageInfo);
       redrawAnnotations(pageInfo);
       wireDrawing(pageInfo, state, sheetId);
@@ -421,7 +457,7 @@ async function initViewer(page, songIds, startIndex) {
     if (!p || !p.strokes.length) return;
     p.strokes.pop();
     redrawAnnotations(p);
-    await saveStrokes(state.sheet.id, p.pageNum, p.strokes);
+    await saveStrokes(state.sheet.id, p.pageNum, normalizeStrokes(p.strokes, p.annoCanvas.width, p.annoCanvas.height));
   });
 
   clearBtn.addEventListener('click', (e) => {
@@ -459,8 +495,15 @@ async function initViewer(page, songIds, startIndex) {
     if (autoScroll.enabled) stopAutoScroll();
     else startAutoScroll();
   });
-  autoscrollSpeed.addEventListener('input', () => {
-    autoScroll.speed = Number(autoscrollSpeed.value);
+  autoscrollSpeedDown.addEventListener('click', (e) => {
+    e.preventDefault();
+    autoScroll.speed = Math.max(AUTOSCROLL_SPEED_MIN, autoScroll.speed - 1);
+    updateAutoscrollSpeedDisplay();
+  });
+  autoscrollSpeedUp.addEventListener('click', (e) => {
+    e.preventDefault();
+    autoScroll.speed = Math.min(AUTOSCROLL_SPEED_MAX, autoScroll.speed + 1);
+    updateAutoscrollSpeedDisplay();
   });
 
   function onKeydown(e) {
@@ -538,6 +581,7 @@ async function initViewer(page, songIds, startIndex) {
   page.viewerAutoScroll = { container, autoScroll, onContainerScroll, stopAutoScroll };
 
   applyDrawMode();
+  updateAutoscrollSpeedDisplay();
   await loadSong(state.index);
 }
 
