@@ -2,6 +2,16 @@ html,
 body {
   height: 100%;
   background: #15161c;
+  /* Stops a horizontal pan/overscroll from chaining into the browser's own
+     swipe-to-navigate (back/forward) gesture — most noticeable on Chrome/
+     Android tablets, where panning a zoomed-in sheet to its edge would
+     otherwise be read as an edge-swipe nav gesture instead of "no more
+     content to pan to". Belt-and-braces here; the actual pannable element
+     (.viewer-content) sets it too, since that's the one doing the panning.
+     Note: this can't fully suppress Safari's own edge-swipe-back gesture on
+     iOS/iPadOS — WebKit intentionally doesn't let web content override that
+     one, only Chromium's overscroll-triggered navigation. */
+  overscroll-behavior-x: none;
 }
 
 /* #main-tabbar lives outside .view-main (it's shared across Library/Playlists/
@@ -93,6 +103,9 @@ body:not(.viewer-mode) .page-content {
      sizer's left edge is flush with the container's left edge. */
   align-items: flex-start;
   background: #000;
+  /* This is the element that actually pans horizontally while zoomed in —
+     see the html/body rule above for why this needs to be here specifically. */
+  overscroll-behavior-x: none;
 }
 
 .viewer-content::after {

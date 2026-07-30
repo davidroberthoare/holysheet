@@ -8,7 +8,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../../vendor/pdfjs/pdf.worker.
 const DPR = window.devicePixelRatio || 1;
 const PEN_COLOR = '#e63946';
 const PEN_WIDTH_CSS = 3;
-const SWIPE_THRESHOLD = 60;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
@@ -514,33 +513,6 @@ async function initViewer(page, songIds, startIndex) {
   document.addEventListener('keydown', onKeydown);
   page.viewerKeydownHandler = onKeydown;
 
-  let touchStartX = null;
-  let touchStartY = null;
-  function onTouchStart(e) {
-    // Multi-touch means a pinch gesture, not a song-swipe — bail so a
-    // finger lifting mid-pinch can't be mistaken for a swipe.
-    if (state.drawMode || e.touches.length !== 1) {
-      touchStartX = null;
-      return;
-    }
-    const t = e.touches[0];
-    touchStartX = t.clientX;
-    touchStartY = t.clientY;
-  }
-  function onTouchEnd(e) {
-    if (state.drawMode || touchStartX === null || e.touches.length !== 0) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
-    touchStartX = null;
-    if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      goTo(state.index + (dx < 0 ? 1 : -1));
-    }
-  }
-  container.addEventListener('touchstart', onTouchStart, { passive: true });
-  container.addEventListener('touchend', onTouchEnd, { passive: true });
-  page.viewerTouchHandlers = { container, onTouchStart, onTouchEnd };
-
   // Two-finger pinch-to-zoom, anchored at the gesture midpoint.
   const activePointers = new Map();
   let pinch = null;
@@ -589,11 +561,6 @@ function cleanupViewer(event, page) {
   document.body.classList.remove('viewer-mode');
   if (page.viewerState) page.viewerState.cancelled = true;
   if (page.viewerKeydownHandler) document.removeEventListener('keydown', page.viewerKeydownHandler);
-  if (page.viewerTouchHandlers) {
-    const { container, onTouchStart, onTouchEnd } = page.viewerTouchHandlers;
-    container.removeEventListener('touchstart', onTouchStart);
-    container.removeEventListener('touchend', onTouchEnd);
-  }
   if (page.viewerPointerHandlers) {
     const { container, onPointerDown, onPointerMove, onPointerEnd } = page.viewerPointerHandlers;
     container.removeEventListener('pointerdown', onPointerDown);
