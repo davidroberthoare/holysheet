@@ -47,10 +47,18 @@ const PRECACHE_URLS = [
 ];
 
 self.addEventListener('install', (event) => {
+  // { cache: 'reload' } forces every precache fetch to bypass the browser's
+  // ordinary HTTP cache, not just Cache Storage. Without it, cache.addAll()
+  // fetches with default HTTP caching rules — so on a host that doesn't send
+  // strong no-cache headers (e.g. plain `python3 -m http.server` in local
+  // dev, which sends none at all), a version bump could still precache an
+  // already-stale response straight from disk cache, silently reproducing
+  // the exact staleness bug bumping APP_VERSION is meant to fix.
+  const precacheRequests = PRECACHE_URLS.map((url) => new Request(url, { cache: 'reload' }));
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .then((cache) => cache.addAll(precacheRequests))
       .then(() => self.skipWaiting())
   );
 });

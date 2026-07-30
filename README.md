@@ -9,7 +9,11 @@ You're welcome to use the public website version: https://holysheet.drhmedia.net
 or run it locally:
 
 ```
-python3 -m http.server 8420
+python3 devserver.py 8420
 ```
 
-Then open `http://localhost:8420/index.html`. Any static file server works.
+Then open `http://localhost:8420/index.html`. Any static file server works, but
+`devserver.py` (a tiny wrapper around the stdlib `http.server`) also sends
+`Cache-Control: no-cache, must-revalidate`, so file edits and version bumps are
+always picked up on the next reload instead of being served from the browser's
+disk cache — see "Caching toggle" in CLAUDE.md.
