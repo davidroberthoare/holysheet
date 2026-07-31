@@ -217,6 +217,7 @@ async function initViewer(page, songIds, startIndex) {
     sheet: null,
     cancelled: false,
     zoom: 1,
+    minZoom: ZOOM_MIN,
     baseWidth: 0,
     baseHeight: 0,
   };
@@ -370,7 +371,7 @@ async function initViewer(page, songIds, startIndex) {
   // always re-centering on the top-left corner.
   function applyZoom(targetZoom, anchorX, anchorY) {
     if (!state.baseWidth) return;
-    const clamped = Math.min(Math.max(targetZoom, ZOOM_MIN), ZOOM_MAX);
+    const clamped = Math.min(Math.max(targetZoom, state.minZoom), ZOOM_MAX);
     const rect = container.getBoundingClientRect();
     const cx = anchorX !== undefined ? anchorX : rect.left + rect.width / 2;
     const cy = anchorY !== undefined ? anchorY : rect.top + rect.height / 2;
@@ -435,6 +436,13 @@ async function initViewer(page, songIds, startIndex) {
 
     state.baseWidth = container.clientWidth;
     state.baseHeight = zoomLayer.scrollHeight;
+    // Zoom 1 ("fit width") can still leave most of a tall/portrait page's
+    // height off-screen — let zoom-out go low enough to show that first
+    // page's full height too, rather than bottoming out at fit-width.
+    // Math.min with ZOOM_MIN keeps it from ever raising the floor above 1
+    // for pages already short enough to fit at zoom 1.
+    const firstPageHeight = state.currentPages[0] ? state.currentPages[0].wrapper.offsetHeight : state.baseHeight;
+    state.minZoom = Math.min(ZOOM_MIN, container.clientHeight / firstPageHeight);
     resetZoomForSong();
   }
 
