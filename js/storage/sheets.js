@@ -20,7 +20,7 @@ export function getSheet(id) {
   return dbGet(STORES.sheets, id);
 }
 
-export function addSheet({ id, title, mimeType, blob, createdAt }) {
+export function addSheet({ id, title, mimeType, blob, createdAt, videoUrl }) {
   const sheet = {
     id: id || makeId(),
     title,
@@ -28,6 +28,7 @@ export function addSheet({ id, title, mimeType, blob, createdAt }) {
     mimeType,
     blob,
     createdAt: createdAt || Date.now(),
+    videoUrl: videoUrl || null,
   };
   return dbPut(STORES.sheets, sheet).then(() => sheet);
 }
@@ -44,6 +45,15 @@ export function renameSheet(id, title) {
   return getSheet(id).then((sheet) => {
     if (!sheet) throw new Error(`Sheet not found: ${id}`);
     sheet.title = title;
+    return dbPut(STORES.sheets, sheet);
+  });
+}
+
+// Attach (or, with null/'' url, remove) a YouTube link to a sheet.
+export function setSheetVideoUrl(id, videoUrl) {
+  return getSheet(id).then((sheet) => {
+    if (!sheet) throw new Error(`Sheet not found: ${id}`);
+    sheet.videoUrl = videoUrl || null;
     return dbPut(STORES.sheets, sheet);
   });
 }

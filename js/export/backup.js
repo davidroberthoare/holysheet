@@ -34,6 +34,7 @@ export async function exportLibrary() {
       mimeType: sheet.mimeType,
       fileType: sheet.fileType,
       createdAt: sheet.createdAt,
+      videoUrl: sheet.videoUrl || null,
       file: path,
     });
   }
@@ -73,6 +74,7 @@ export async function exportPlaylist(playlistId) {
       mimeType: sheet.mimeType,
       fileType: sheet.fileType,
       createdAt: sheet.createdAt,
+      videoUrl: sheet.videoUrl || null,
       file: path,
     });
   }
@@ -148,6 +150,7 @@ export async function importLibrary(file) {
       mimeType: entry.mimeType,
       blob: new Blob([bytes], { type: entry.mimeType }),
       createdAt: entry.createdAt,
+      videoUrl: entry.videoUrl,
     });
     if (!alreadyTracked) existing.push(sheet);
   }

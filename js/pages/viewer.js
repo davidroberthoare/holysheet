@@ -2,6 +2,7 @@ import * as pdfjsLib from '../../vendor/pdfjs/pdf.min.mjs';
 import { getSheet } from '../storage/sheets.js';
 import { getPlaylist } from '../storage/playlists.js';
 import { getPageAnnotation, saveStrokes, clearPageAnnotation } from '../storage/annotations.js';
+import { youtubeEmbedUrl } from '../util.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../../vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
 
@@ -35,14 +36,17 @@ function pageShellHtml() {
         <div class="toolbar-inner">
           <a href="#" class="link song-nav corner-btn" id="prev-song-btn"><i class="icon f7-icons">chevron_left</i></a>
           <div class="viewer-toolbar-group" id="view-controls">
-            <a href="#" class="link viewer-toolbar-btn" id="zoom-out-btn"><i class="icon f7-icons">zoom_out</i></a>
-            <a href="#" class="link viewer-toolbar-btn" id="zoom-in-btn"><i class="icon f7-icons">zoom_in</i></a>
-            <a href="#" class="link viewer-toolbar-btn" id="autoscroll-speed-down"><i class="icon f7-icons">minus</i></a>
-            <a href="#" class="link viewer-toolbar-btn" id="autoscroll-toggle">
-              <i class="icon f7-icons">play_fill</i>
-              <span class="viewer-speed-badge" id="autoscroll-speed-value">2</span>
-            </a>
-            <a href="#" class="link viewer-toolbar-btn" id="autoscroll-speed-up"><i class="icon f7-icons">plus</i></a>
+          <a href="#" class="link viewer-toolbar-btn" id="zoom-out-btn"><i class="icon f7-icons">zoom_out</i></a>
+          <a href="#" class="link viewer-toolbar-btn" id="zoom-in-btn"><i class="icon f7-icons">zoom_in</i></a>
+          <a href="#" class="toolbar-spacer"></a>
+          <a href="#" class="link viewer-toolbar-btn" id="autoscroll-speed-down"><i class="icon f7-icons">minus</i></a>
+          <a href="#" class="link viewer-toolbar-btn" id="autoscroll-toggle">
+          <i class="icon f7-icons">play_fill</i>
+          <span class="viewer-speed-badge" id="autoscroll-speed-value">2</span>
+          </a>
+          <a href="#" class="link viewer-toolbar-btn" id="autoscroll-speed-up"><i class="icon f7-icons">plus</i></a>
+          <a href="#" class="toolbar-spacer"></a>
+          <a href="#" class="link viewer-toolbar-btn" id="video-toggle"><i class="icon f7-icons">videocam</i></a>
           </div>
           <div class="viewer-toolbar-group" id="edit-controls">
             <a href="#" class="link" id="undo-btn"><i class="icon f7-icons">arrow_uturn_left</i></a>
@@ -237,6 +241,7 @@ async function initViewer(page, songIds, startIndex) {
   const autoscrollSpeedDown = page.el.querySelector('#autoscroll-speed-down');
   const autoscrollSpeedUp = page.el.querySelector('#autoscroll-speed-up');
   const autoscrollSpeedValue = page.el.querySelector('#autoscroll-speed-value');
+  const videoToggle = page.el.querySelector('#video-toggle');
 
   const autoScroll = {
     enabled: false,
@@ -262,6 +267,41 @@ async function initViewer(page, songIds, startIndex) {
   zoomLayer.className = 'viewer-zoom-layer';
   zoomSizer.appendChild(zoomLayer);
   container.appendChild(zoomSizer);
+
+  const videoOverlay = document.createElement('div');
+  videoOverlay.className = 'video-overlay';
+  videoOverlay.innerHTML = `
+    <iframe src="" title="YouTube" frameborder="0"
+      allow="autoplay;"
+      referrerpolicy="strict-origin-when-cross-origin"
+      ></iframe>`;
+  page.el.appendChild(videoOverlay);
+
+  let videoOpen = false;
+  function currentVideoEmbed() {
+    const url = state.sheet && state.sheet.videoUrl;
+    return url ? youtubeEmbedUrl(url) : null;
+  }
+  function openVideo() {
+    const embed = currentVideoEmbed();
+    if (!embed) return;
+    videoOverlay.querySelector('iframe').setAttribute('src', embed);
+    videoOverlay.classList.add('open');
+    videoToggle.classList.add('viewer-active-btn');
+    videoOpen = true;
+  }
+  function closeVideo() {
+    videoOverlay.classList.remove('open');
+    videoOverlay.querySelector('iframe').removeAttribute('src');
+    videoToggle.classList.remove('viewer-active-btn');
+    videoOpen = false;
+  }
+  videoToggle.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (videoOpen) closeVideo();
+    else openVideo();
+  });
+  page.viewerVideo = { closeVideo, overlay: videoOverlay, videoToggle };
 
   if (songIds.length <= 1) {
     page.el.querySelector('#viewer-toolbar').classList.add('single-mode');
@@ -404,6 +444,7 @@ async function initViewer(page, songIds, startIndex) {
 
   async function loadSong(index) {
     state.index = index;
+    if (videoOpen) closeVideo();
     const sheetId = state.songIds[index];
     const sheet = await getSheet(sheetId);
     if (state.cancelled) return;
@@ -412,12 +453,17 @@ async function initViewer(page, songIds, startIndex) {
       titleEl.textContent = 'Sheet not found';
       zoomLayer.innerHTML = '';
       state.currentPages = [];
+      videoToggle.style.display = 'none';
+      if (videoOpen) closeVideo();
       return;
     }
 
     state.sheet = sheet;
     state.currentPages = [];
     titleEl.textContent = songIds.length > 1 ? `${index + 1}/${songIds.length} · ${sheet.title}` : sheet.title;
+    const hasVideo = !!(sheet.videoUrl && youtubeEmbedUrl(sheet.videoUrl));
+    videoToggle.style.display = hasVideo ? '' : 'none';
+    if (!hasVideo && videoOpen) closeVideo();
 
     await renderSong(container, zoomLayer, sheet, async ({ pageNum, wrapper, annoCanvas }) => {
       if (state.cancelled) return;
@@ -581,6 +627,10 @@ function cleanupViewer(event, page) {
     stopAutoScroll();
     clearTimeout(autoScroll.programmaticResetTimer);
     container.removeEventListener('scroll', onContainerScroll);
+  }
+  if (page.viewerVideo) {
+    page.viewerVideo.closeVideo();
+    if (page.viewerVideo.overlay.parentNode) page.viewerVideo.overlay.parentNode.removeChild(page.viewerVideo.overlay);
   }
 }
 

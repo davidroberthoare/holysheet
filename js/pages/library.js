@@ -1,8 +1,8 @@
-import { listSheets, addSheet, findDuplicateSheet, renameSheet, deleteSheet } from '../storage/sheets.js';
+import { listSheets, addSheet, findDuplicateSheet, renameSheet, deleteSheet, setSheetVideoUrl, getSheet } from '../storage/sheets.js';
 import { removeSheetFromAllPlaylists } from '../storage/playlists.js';
 import { deleteAnnotationsForSheet } from '../storage/annotations.js';
 import { importSources } from '../import/index.js';
-import { escapeHtml, formatDate, setActiveTab } from '../util.js';
+import { escapeHtml, formatDate, setActiveTab, getYouTubeVideoId } from '../util.js';
 
 function iconForFileType(fileType) {
   return fileType === 'pdf' ? 'doc_text' : 'photo';
@@ -45,17 +45,38 @@ async function refresh(page) {
 }
 
 function openSheetActions(app, page, sheetId) {
+  const buttons = [
+    [
+      { text: 'Rename', onClick: () => renamePrompt(app, page, sheetId) },
+      { text: 'Add / Edit Video', onClick: () => videoPrompt(app, page, sheetId) },
+      { text: 'Delete', color: 'red', onClick: () => deleteConfirm(app, page, sheetId) },
+    ],
+    [{ text: 'Cancel', color: 'gray' }],
+  ];
   app.actions
-    .create({
-      buttons: [
-        [
-          { text: 'Rename', onClick: () => renamePrompt(app, page, sheetId) },
-          { text: 'Delete', color: 'red', onClick: () => deleteConfirm(app, page, sheetId) },
-        ],
-        [{ text: 'Cancel', color: 'gray' }],
-      ],
-    })
+    .create({ buttons })
     .open();
+}
+
+function videoPrompt(app, page, sheetId) {
+  Promise.resolve(getSheet(sheetId)).then((sheet) => {
+    const current = sheet && sheet.videoUrl ? sheet.videoUrl : '';
+    app.dialog.prompt(
+      'Paste a YouTube link to play alongside this sheet. Leave blank to keep the current link.',
+      'Video Link',
+      (value) => {
+        const url = typeof value === 'string' ? value.trim() : '';
+        if (!url) return;
+        if (!getYouTubeVideoId(url)) {
+          app.toast.create({ text: 'Not a valid YouTube link', closeTimeout: 2500 }).open();
+          return;
+        }
+        setSheetVideoUrl(sheetId, url).then(() => refresh(page));
+      },
+      undefined,
+      current
+    );
+  });
 }
 
 function renamePrompt(app, page, sheetId) {
