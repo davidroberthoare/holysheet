@@ -7,23 +7,30 @@ function titleFromFilename(filename) {
 }
 
 // Shared "add these files to the library" logic, used by both the upload
-// button (file picker) and drag & drop. `onDone` is called once all items
-// have been processed, with the array of sheets that were actually added
-// (skipped/failed items are excluded) — e.g. to refresh a page's list or to
-// append the new sheets to a playlist.
+// button (file picker) and drag & drop. A file whose title matches an
+// existing sheet replaces that sheet's content (keeping its id/createdAt)
+// instead of being skipped, mirroring backup/zip import. `onDone` is called
+// once all items have been processed, with the array of sheets that were
+// actually added or replaced (failed items are excluded) — e.g. to refresh
+// a page's list or to append the new sheets to a playlist.
 export async function importItems(app, items, onDone) {
   if (!items.length) return [];
   const existing = await listSheets();
   const added = [];
   for (const item of items) {
-    if (findDuplicateSheet(existing, { title: item.title, size: item.blob.size })) {
-      app.toast.create({ text: `Skipped ${item.title}: already in library`, closeTimeout: 2500 }).open();
-      continue;
-    }
+    const dup = findDuplicateSheet(existing, { title: item.title });
     try {
-      const sheet = await addSheet(item);
-      existing.push(sheet);
-      added.push(sheet);
+      if (dup) {
+        const sheet = await addSheet({ ...item, id: dup.id, createdAt: dup.createdAt, videoUrl: dup.videoUrl });
+        const idx = existing.findIndex((s) => s.id === dup.id);
+        if (idx !== -1) existing[idx] = sheet;
+        added.push(sheet);
+        app.toast.create({ text: `Replaced ${item.title}`, closeTimeout: 2500 }).open();
+      } else {
+        const sheet = await addSheet(item);
+        existing.push(sheet);
+        added.push(sheet);
+      }
     } catch (err) {
       app.toast.create({ text: `Skipped ${item.title}: ${err.message}`, closeTimeout: 2500 }).open();
     }
