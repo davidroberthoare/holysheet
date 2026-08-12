@@ -28,6 +28,7 @@ const PRECACHE_URLS = [
   './js/storage/annotations.js',
   './js/import/local-source.js',
   './js/import/index.js',
+  './js/import/drag-drop.js',
   './js/export/backup.js',
   './vendor/framework7/css/framework7-bundle.min.css',
   './vendor/framework7/js/framework7-bundle.min.js',

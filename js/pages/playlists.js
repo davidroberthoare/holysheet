@@ -7,6 +7,7 @@ import {
   deletePlaylist,
   setPlaylistSheets,
 } from '../storage/playlists.js';
+import { initDragDropImport } from '../import/drag-drop.js';
 import { escapeHtml, setActiveTab } from '../util.js';
 
 // ---------- Playlist list ----------
@@ -260,7 +261,7 @@ export const playlistEditorRoute = {
       <div class="page-content">
         <div class="list media-list sortable" id="editor-sheet-list"><ul></ul></div>
         <div class="block block-strong text-align-center" id="editor-empty-state">
-          <p>No sheets in this playlist yet. Tap + to add some from your library.</p>
+          <p>No sheets in this playlist yet. Tap + to add some from your library, or drop a PDF/image here.</p>
         </div>
       </div>
     </div>
@@ -278,6 +279,20 @@ export const playlistEditorRoute = {
 
       const sortableListEl = page.el.querySelector('#editor-sheet-list');
       app.sortable.enable(sortableListEl);
+
+      initDragDropImport(
+        app,
+        page,
+        async (addedSheets) => {
+          if (addedSheets.length) {
+            const current = await getPlaylist(playlistId);
+            if (!current) return;
+            await setPlaylistSheets(playlistId, [...current.sheetIds, ...addedSheets.map((s) => s.id)]);
+          }
+          await refreshEditor(page, playlistId);
+        },
+        'Drop PDF or image to add to this playlist'
+      );
 
       page.sortableSortHandler = async (itemEl, data, listEl) => {
         if (listEl !== sortableListEl) return;

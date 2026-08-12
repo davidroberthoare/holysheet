@@ -1,7 +1,8 @@
-import { listSheets, addSheet, findDuplicateSheet, renameSheet, deleteSheet, setSheetVideoUrl, getSheet } from '../storage/sheets.js';
+import { listSheets, renameSheet, deleteSheet, setSheetVideoUrl, getSheet } from '../storage/sheets.js';
 import { removeSheetFromAllPlaylists } from '../storage/playlists.js';
 import { deleteAnnotationsForSheet } from '../storage/annotations.js';
 import { importSources } from '../import/index.js';
+import { importItems, initDragDropImport } from '../import/drag-drop.js';
 import { escapeHtml, formatDate, setActiveTab, getYouTubeVideoId } from '../util.js';
 
 function iconForFileType(fileType) {
@@ -105,26 +106,7 @@ async function handleUpload(app, page) {
     app.toast.create({ text: `Upload failed: ${err.message}`, closeTimeout: 2500 }).open();
     return;
   }
-  if (!picked.length) return;
-
-  const existing = await listSheets();
-  for (const item of picked) {
-    const dup = findDuplicateSheet(existing, { title: item.title });
-    try {
-      if (dup) {
-        const sheet = await addSheet({ ...item, id: dup.id, createdAt: dup.createdAt, videoUrl: dup.videoUrl });
-        const idx = existing.findIndex((s) => s.id === dup.id);
-        if (idx !== -1) existing[idx] = sheet;
-        app.toast.create({ text: `Replaced ${item.title}`, closeTimeout: 2500 }).open();
-      } else {
-        const sheet = await addSheet(item);
-        existing.push(sheet);
-      }
-    } catch (err) {
-      app.toast.create({ text: `Skipped ${item.title}: ${err.message}`, closeTimeout: 2500 }).open();
-    }
-  }
-  refresh(page);
+  await importItems(app, picked, () => refresh(page));
 }
 
 export const libraryRoute = {
@@ -144,7 +126,7 @@ export const libraryRoute = {
       <div class="page-content">
         <div class="list media-list" id="sheet-list"></div>
         <div class="block block-strong text-align-center" id="empty-state">
-          <p>No sheets yet. Tap the upload icon to add a PDF or image.</p>
+          <p>No sheets yet. Tap the upload icon or drop a PDF or image here to add one.</p>
         </div>
       </div>
     </div>
@@ -154,6 +136,7 @@ export const libraryRoute = {
       const app = page.app;
       setActiveTab('library');
       refresh(page);
+      initDragDropImport(app, page, () => refresh(page));
 
       page.el.querySelector('#upload-btn').addEventListener('click', (e) => {
         e.preventDefault();
