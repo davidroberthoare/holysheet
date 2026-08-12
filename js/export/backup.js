@@ -116,13 +116,12 @@ export function downloadExport(blob, filename) {
 // Records carry their original ids, so re-importing the same backup is a
 // safe no-op overwrite rather than creating duplicates.
 //
-// A *different* backup can still reference a sheet (same title + file size)
-// that's already in the library under a different id — e.g. re-exporting
-// after the app assigned a fresh id some other way, or importing a backup
-// taken on another device that also has this sheet. Those entries are
-// skipped rather than added as a second copy, and any playlist/annotation
-// that pointed at the skipped id is remapped onto the existing sheet instead
-// so the restored playlist doesn't end up silently missing a song.
+// A *different* backup can reference a sheet (same title) that's already in
+// the library under a different id — e.g. imported from another device.
+// Those entries replace the existing sheet's file content while keeping its
+// local id, createdAt, and any existing annotations are preserved (not
+// clobbered) unless overwritten by the backup's own annotations.
+// Playlists and annotations from the backup are remapped onto the existing id.
 export async function importLibrary(file) {
   const files = unzipSync(new Uint8Array(await file.arrayBuffer()));
 
@@ -131,16 +130,27 @@ export async function importLibrary(file) {
   const manifest = JSON.parse(strFromU8(manifestBytes));
 
   const existing = await listSheets();
-  const duplicateMap = new Map(); // skipped entry id -> id of the existing sheet it duplicates
+  const duplicateMap = new Map(); // incoming entry id -> id of the existing sheet it maps onto
+  let replaced = 0;
 
   for (const entry of manifest.sheets || []) {
     const bytes = files[entry.file];
     if (!bytes) continue;
     const alreadyTracked = existing.some((s) => s.id === entry.id);
     if (!alreadyTracked) {
-      const dup = findDuplicateSheet(existing, { title: entry.title, size: bytes.length });
+      const dup = findDuplicateSheet(existing, { title: entry.title });
       if (dup) {
+        // Replace the existing sheet's content while keeping its local id and createdAt.
         duplicateMap.set(entry.id, dup.id);
+        await addSheet({
+          id: dup.id,
+          title: entry.title,
+          mimeType: entry.mimeType,
+          blob: new Blob([bytes], { type: entry.mimeType }),
+          createdAt: dup.createdAt,
+          videoUrl: entry.videoUrl || dup.videoUrl,
+        });
+        replaced++;
         continue;
       }
     }
@@ -181,8 +191,8 @@ export async function importLibrary(file) {
   }
 
   return {
-    sheets: (manifest.sheets || []).length - duplicateMap.size,
-    skipped: duplicateMap.size,
+    sheets: (manifest.sheets || []).length - replaced,
+    replaced,
     playlists: (manifest.playlists || []).length,
     annotations: (manifest.annotations || []).length,
   };

@@ -33,12 +33,15 @@ export function addSheet({ id, title, mimeType, blob, createdAt, videoUrl }) {
   return dbPut(STORES.sheets, sheet).then(() => sheet);
 }
 
-// Same file loaded twice detection: an exact (case-sensitive) title match
-// plus a matching blob size is treated as the same underlying file. Used by
-// both the regular upload picker and backup restore so neither can create a
-// second copy of a sheet that's already in the library.
+// Duplicate detection. When only `title` is given, any existing sheet with
+// that title is returned so the caller can replace it. When `size` is also
+// given (e.g. backup restore), both title and blob size must match so that
+// files that share a name but differ in content are not treated as identical.
 export function findDuplicateSheet(sheets, { id, title, size } = {}) {
-  return sheets.find((s) => s.id !== id && s.title === title && s.blob.size === size);
+  if (size !== undefined) {
+    return sheets.find((s) => s.id !== id && s.title === title && s.blob.size === size);
+  }
+  return sheets.find((s) => s.id !== id && s.title === title);
 }
 
 export function renameSheet(id, title) {
