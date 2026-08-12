@@ -109,13 +109,17 @@ async function handleUpload(app, page) {
 
   const existing = await listSheets();
   for (const item of picked) {
-    if (findDuplicateSheet(existing, { title: item.title, size: item.blob.size })) {
-      app.toast.create({ text: `Skipped ${item.title}: already in library`, closeTimeout: 2500 }).open();
-      continue;
-    }
+    const dup = findDuplicateSheet(existing, { title: item.title });
     try {
-      const sheet = await addSheet(item);
-      existing.push(sheet);
+      if (dup) {
+        const sheet = await addSheet({ ...item, id: dup.id, createdAt: dup.createdAt, videoUrl: dup.videoUrl });
+        const idx = existing.findIndex((s) => s.id === dup.id);
+        if (idx !== -1) existing[idx] = sheet;
+        app.toast.create({ text: `Replaced ${item.title}`, closeTimeout: 2500 }).open();
+      } else {
+        const sheet = await addSheet(item);
+        existing.push(sheet);
+      }
     } catch (err) {
       app.toast.create({ text: `Skipped ${item.title}: ${err.message}`, closeTimeout: 2500 }).open();
     }
