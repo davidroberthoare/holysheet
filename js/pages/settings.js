@@ -183,9 +183,9 @@ export const settingsRoute = {
           app.preloader.show();
           try {
             const result = await importLibrary(file);
-            const skippedNote = result.skipped ? ` Skipped ${result.skipped} duplicate sheet(s) already in your library.` : '';
+            const replacedNote = result.replaced ? ` Replaced ${result.replaced} existing sheet(s) with updated versions.` : '';
             app.dialog.alert(
-              `Imported ${result.sheets} sheet(s), ${result.playlists} playlist(s).${skippedNote}`,
+              `Imported ${result.sheets} new sheet(s), ${result.playlists} playlist(s).${replacedNote}`,
               'Import Complete'
             );
           } catch (err) {
