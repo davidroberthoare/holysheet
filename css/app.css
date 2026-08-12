@@ -256,3 +256,34 @@ body:not(.viewer-mode) .page-content {
   justify-content: center;
   min-width: 75px;
 }
+
+/* Drop overlay shown on the library page while a drag is in progress */
+#drop-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(var(--f7-theme-color-rgb, 0, 122, 255), 0.15);
+  border: 3px dashed var(--f7-theme-color, #007aff);
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+#drop-overlay.active {
+  display: flex;
+}
+
+#drop-overlay span {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--f7-theme-color, #007aff);
+  text-align: center;
+  padding: 1rem;
+}
+
+/* Allow the drop overlay (position:absolute) to be contained within the library page-content */
+.page[data-name="library"] .page-content {
+  position: relative;
+}

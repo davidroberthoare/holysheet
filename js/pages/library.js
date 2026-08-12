@@ -96,19 +96,14 @@ function deleteConfirm(app, page, sheetId) {
   });
 }
 
-async function handleUpload(app, page) {
-  const source = importSources[0];
-  let picked;
-  try {
-    picked = await source.pick();
-  } catch (err) {
-    app.toast.create({ text: `Upload failed: ${err.message}`, closeTimeout: 2500 }).open();
-    return;
-  }
-  if (!picked.length) return;
+function titleFromFilename(filename) {
+  return filename.replace(/\.[^/.]+$/, '');
+}
 
+async function importItems(app, page, items) {
+  if (!items.length) return;
   const existing = await listSheets();
-  for (const item of picked) {
+  for (const item of items) {
     if (findDuplicateSheet(existing, { title: item.title, size: item.blob.size })) {
       app.toast.create({ text: `Skipped ${item.title}: already in library`, closeTimeout: 2500 }).open();
       continue;
@@ -121,6 +116,64 @@ async function handleUpload(app, page) {
     }
   }
   refresh(page);
+}
+
+async function handleUpload(app, page) {
+  const source = importSources[0];
+  let picked;
+  try {
+    picked = await source.pick();
+  } catch (err) {
+    app.toast.create({ text: `Upload failed: ${err.message}`, closeTimeout: 2500 }).open();
+    return;
+  }
+  await importItems(app, page, picked);
+}
+
+function initDragDrop(app, page) {
+  const pageContent = page.el.querySelector('.page-content');
+
+  // Overlay shown while dragging over the drop target
+  const overlay = document.createElement('div');
+  overlay.id = 'drop-overlay';
+  overlay.innerHTML = '<span>Drop PDF or image to import</span>';
+  pageContent.appendChild(overlay);
+
+  let dragCounter = 0;
+
+  pageContent.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dragCounter++;
+    overlay.classList.add('active');
+  });
+
+  pageContent.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+
+  pageContent.addEventListener('dragleave', () => {
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      overlay.classList.remove('active');
+    }
+  });
+
+  pageContent.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    overlay.classList.remove('active');
+
+    const accepted = ['application/pdf', 'image/png', 'image/jpeg'];
+    const files = Array.from(e.dataTransfer.files).filter((f) => accepted.includes(f.type));
+    if (!files.length) {
+      app.toast.create({ text: 'Only PDF and image files are supported', closeTimeout: 2500 }).open();
+      return;
+    }
+    const items = files.map((f) => ({ title: titleFromFilename(f.name), mimeType: f.type, blob: f }));
+    await importItems(app, page, items);
+  });
 }
 
 export const libraryRoute = {
@@ -140,7 +193,7 @@ export const libraryRoute = {
       <div class="page-content">
         <div class="list media-list" id="sheet-list"></div>
         <div class="block block-strong text-align-center" id="empty-state">
-          <p>No sheets yet. Tap the upload icon to add a PDF or image.</p>
+          <p>No sheets yet. Tap the upload icon or drop a PDF or image here to add one.</p>
         </div>
       </div>
     </div>
@@ -150,6 +203,7 @@ export const libraryRoute = {
       const app = page.app;
       setActiveTab('library');
       refresh(page);
+      initDragDrop(app, page);
 
       page.el.querySelector('#upload-btn').addEventListener('click', (e) => {
         e.preventDefault();
