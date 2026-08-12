@@ -4,7 +4,7 @@ A personal sheet-music reader PWA for bands. Hobby project, built for one user (
 
 Offline-first, mobile-first. Framework7 + pdf.js + fflate, vendored — no build step, no framework CLI, just static files.
 
-You're welcome to use the public website version: https://holysheet.drhmedia.net as the app stores all your data in your own local broswer, and never sends anything to my server.
+You're welcome to use the public website version: https://holysheet.drhmedia.net as the app stores all your data in your own local browser, and never sends anything to my server.
 
 or run it locally:
 
@@ -16,4 +16,4 @@ Then open `http://localhost:8420/index.html`. Any static file server works, but
 `devserver.py` (a tiny wrapper around the stdlib `http.server`) also sends
 `Cache-Control: no-cache, must-revalidate`, so file edits and version bumps are
 always picked up on the next reload instead of being served from the browser's
-disk cache — see "Caching toggle" in CLAUDE.md.
+disk cache — see "Caching toggle" in AGENTS.md.
