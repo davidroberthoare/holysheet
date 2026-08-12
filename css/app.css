@@ -257,8 +257,8 @@ body:not(.viewer-mode) .page-content {
   min-width: 75px;
 }
 
-/* Drop overlay shown on the library page while a drag is in progress */
-#drop-overlay {
+/* Drop overlay shown while a drag is in progress (library and playlists pages) */
+.drop-overlay {
   display: none;
   position: absolute;
   inset: 0;
@@ -271,11 +271,11 @@ body:not(.viewer-mode) .page-content {
   pointer-events: none;
 }
 
-#drop-overlay.active {
+.drop-overlay.active {
   display: flex;
 }
 
-#drop-overlay span {
+.drop-overlay span {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--f7-theme-color, #007aff);
@@ -283,7 +283,8 @@ body:not(.viewer-mode) .page-content {
   padding: 1rem;
 }
 
-/* Allow the drop overlay (position:absolute) to be contained within the library page-content */
-.page[data-name="library"] .page-content {
+/* Allow the drop overlay (position:absolute) to be contained within its page-content */
+.page[data-name="library"] .page-content,
+.page[data-name="playlist-editor"] .page-content {
   position: relative;
 }
