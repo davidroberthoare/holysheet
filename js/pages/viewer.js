@@ -12,6 +12,7 @@ const PEN_WIDTH_CSS = 3;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
+const ZOOM_KEY = 'holysheet:viewerZoom';
 const AUTOSCROLL_PX_PER_SEC_PER_UNIT = 9;
 const AUTOSCROLL_RESUME_DELAY_MS = 1200;
 const AUTOSCROLL_SPEED_MIN = 1;
@@ -220,7 +221,7 @@ async function initViewer(page, songIds, startIndex) {
     currentPages: [],
     sheet: null,
     cancelled: false,
-    zoom: 1,
+    zoom: parseFloat(localStorage.getItem(ZOOM_KEY)) || 1,
     minZoom: ZOOM_MIN,
     baseWidth: 0,
     baseHeight: 0,
@@ -418,6 +419,7 @@ async function initViewer(page, songIds, startIndex) {
     const localX = (cx - rect.left + container.scrollLeft) / state.zoom;
     const localY = (cy - rect.top + container.scrollTop) / state.zoom;
     state.zoom = clamped;
+    localStorage.setItem(ZOOM_KEY, clamped);
     zoomLayer.style.transform = `scale(${clamped})`;
     zoomSizer.style.width = `${state.baseWidth * clamped}px`;
     zoomSizer.style.height = `${state.baseHeight * clamped}px`;
@@ -427,16 +429,16 @@ async function initViewer(page, songIds, startIndex) {
   }
 
   function resetZoomForSong() {
-    state.zoom = 1;
+    const zoom = state.zoom;
     // zoomLayer must be pinned to the base (unscaled) size — left as width:auto
     // it stretches to fill zoomSizer's already-scaled width, and then
     // transform:scale() compounds on top of that instead of scaling from
     // the true base size.
     zoomLayer.style.width = `${state.baseWidth}px`;
     zoomLayer.style.height = `${state.baseHeight}px`;
-    zoomLayer.style.transform = 'scale(1)';
-    zoomSizer.style.width = `${state.baseWidth}px`;
-    zoomSizer.style.height = `${state.baseHeight}px`;
+    zoomLayer.style.transform = `scale(${zoom})`;
+    zoomSizer.style.width = `${state.baseWidth * zoom}px`;
+    zoomSizer.style.height = `${state.baseHeight * zoom}px`;
     markProgrammaticScroll();
     container.scrollLeft = 0;
     container.scrollTop = 0;
