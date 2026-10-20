@@ -19,6 +19,8 @@ const PRECACHE_URLS = [
   './js/db.js',
   './js/caching.js',
   './js/util.js',
+  './js/sheet-edit.js',
+  './js/youtube-search.js',
   './js/pages/library.js',
   './js/pages/viewer.js',
   './js/pages/playlists.js',
@@ -84,6 +86,8 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // config.json holds deploy-specific settings (YouTube key); never serve it stale.
+  if (url.pathname.endsWith('/config.json')) return;
 
   // SPA sub-routes (e.g. /settings/, /viewer/<id>/) aren't real files — the
   // static host 404s on a direct reload/deep-link at those paths. Always hand

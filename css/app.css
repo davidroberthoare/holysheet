@@ -288,3 +288,22 @@ body:not(.viewer-mode) .page-content {
 .page[data-name="playlist-editor"] .page-content {
   position: relative;
 }
+
+/* "..." row buttons: the bare icon was a tiny target and taps just beside it
+   fell through to the row link. Pad the wrapper to a ~44px square and pull it
+   back with negative margins so row height and icon position don't change. */
+.row-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -12px -12px -12px 0;
+  position: relative;
+  z-index: 1; /* above the subtitle line the enlarged box overlaps */
+  cursor: pointer;
+}
+
+.selected-result {
+  background: rgba(var(--f7-theme-color-rgb), 0.18);
+}

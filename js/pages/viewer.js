@@ -3,6 +3,7 @@ import { getSheet } from '../storage/sheets.js';
 import { getPlaylist } from '../storage/playlists.js';
 import { getPageAnnotation, saveStrokes, clearPageAnnotation } from '../storage/annotations.js';
 import { youtubeEmbedUrl } from '../util.js';
+import { renameSheetPrompt, editVideoPopup } from '../sheet-edit.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../../vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
 
@@ -28,6 +29,7 @@ function pageShellHtml() {
           <div class="left"><a href="#" class="link back corner-btn"><i class="icon icon-back"></i></a></div>
           <div class="title" id="viewer-title">Loading…</div>
           <div class="right">
+            <a href="#" class="link corner-btn" id="sheet-settings-btn"><i class="icon f7-icons">gear_alt</i></a>
             <a href="#" class="link corner-btn" id="pen-toggle"><i class="icon f7-icons">pencil</i></a>
           </div>
         </div>
@@ -444,6 +446,38 @@ async function initViewer(page, songIds, startIndex) {
     container.scrollTop = 0;
   }
 
+  // Title + video button reflect the sheet record; re-run after a rename or
+  // a video-link edit so the viewer updates without re-rendering the pages.
+  function applySheetMeta(sheet) {
+    const prev = state.sheet;
+    state.sheet = sheet;
+    titleEl.textContent = songIds.length > 1 ? `${state.index + 1}/${songIds.length} · ${sheet.title}` : sheet.title;
+    const embed = sheet.videoUrl && youtubeEmbedUrl(sheet.videoUrl);
+    videoToggle.style.display = embed ? '' : 'none';
+    if (videoOpen && (!embed || (prev && prev.videoUrl !== sheet.videoUrl))) closeVideo();
+  }
+  async function reloadSheetMeta() {
+    const sheet = await getSheet(state.songIds[state.index]);
+    if (sheet && !state.cancelled) applySheetMeta(sheet);
+  }
+
+  page.el.querySelector('#sheet-settings-btn').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!state.sheet) return;
+    const sheetId = state.sheet.id;
+    app.actions
+      .create({
+        buttons: [
+          [
+            { text: 'Rename', onClick: () => renameSheetPrompt(app, sheetId, reloadSheetMeta) },
+            { text: 'Add / Edit Video', onClick: () => editVideoPopup(app, sheetId, reloadSheetMeta) },
+          ],
+          [{ text: 'Cancel', color: 'gray' }],
+        ],
+      })
+      .open();
+  });
+
   async function loadSong(index) {
     state.index = index;
     if (videoOpen) closeVideo();
@@ -460,12 +494,8 @@ async function initViewer(page, songIds, startIndex) {
       return;
     }
 
-    state.sheet = sheet;
     state.currentPages = [];
-    titleEl.textContent = songIds.length > 1 ? `${index + 1}/${songIds.length} · ${sheet.title}` : sheet.title;
-    const hasVideo = !!(sheet.videoUrl && youtubeEmbedUrl(sheet.videoUrl));
-    videoToggle.style.display = hasVideo ? '' : 'none';
-    if (!hasVideo && videoOpen) closeVideo();
+    applySheetMeta(sheet);
 
     await renderSong(container, zoomLayer, sheet, async ({ pageNum, wrapper, annoCanvas }) => {
       if (state.cancelled) return;

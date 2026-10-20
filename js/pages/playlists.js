@@ -7,7 +7,8 @@ import {
   deletePlaylist,
   setPlaylistSheets,
 } from '../storage/playlists.js';
-import { initDragDropImport } from '../import/drag-drop.js';
+import { initDragDropImport, importItems } from '../import/drag-drop.js';
+import { importSources } from '../import/index.js';
 import { escapeHtml, setActiveTab } from '../util.js';
 
 // ---------- Playlist list ----------
@@ -32,7 +33,7 @@ function renderPlaylistList(el, playlists) {
           <div class="item-inner">
             <div class="item-title-row">
               <div class="item-title">${escapeHtml(playlist.name)}</div>
-              <div class="item-after"><i class="icon f7-icons playlist-more" data-id="${playlist.id}">ellipsis</i></div>
+              <div class="item-after"><span class="row-more playlist-more" data-id="${playlist.id}"><i class="icon f7-icons">ellipsis</i></span></div>
             </div>
             <div class="item-subtitle">${playlist.sheetIds.length} sheet${playlist.sheetIds.length === 1 ? '' : 's'}</div>
           </div>
@@ -220,6 +221,7 @@ function openAddSheetsPopup(app, page, playlistId, currentIds) {
                 </div>
               </div>
               <div class="page-content">
+                <div class="block"><a href="#" class="button button-outline" id="add-sheets-upload"><i class="icon f7-icons">square_arrow_up</i> Upload new file</a></div>
                 <div class="list" id="add-sheets-list">${itemsHtml}</div>
               </div>
             </div>
@@ -235,6 +237,25 @@ function openAddSheetsPopup(app, page, playlistId, currentIds) {
         await setPlaylistSheets(playlistId, [...currentIds, ...checked]);
         await refreshEditor(page, playlistId);
       }
+      popup.close();
+    });
+
+    // Must run synchronously inside the click so the file picker is allowed to
+    // open; the new sheets go straight into the playlist.
+    popup.el.querySelector('#add-sheets-upload').addEventListener('click', async (e) => {
+      e.preventDefault();
+      let picked;
+      try {
+        picked = await importSources[0].pick();
+      } catch (err) {
+        app.toast.create({ text: `Upload failed: ${err.message}`, closeTimeout: 2500 }).open();
+        return;
+      }
+      const uploaded = await importItems(app, picked);
+      const fresh = uploaded.map((s) => s.id).filter((id) => !currentIds.includes(id));
+      if (!fresh.length) return;
+      await setPlaylistSheets(playlistId, [...currentIds, ...fresh]);
+      await refreshEditor(page, playlistId);
       popup.close();
     });
 

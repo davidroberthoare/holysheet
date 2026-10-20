@@ -12,7 +12,7 @@
 # revalidation round-trip (conditional GET) before reuse, so an unchanged
 # file is still a cheap 304 rather than a full re-download every load.
 <IfModule mod_headers.c>
-  <FilesMatch "^(index\.html|sw\.js|manifest\.json)$">
+  <FilesMatch "^(index\.html|sw\.js|manifest\.json|config\.json)$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

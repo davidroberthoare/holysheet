@@ -1,9 +1,10 @@
-import { listSheets, renameSheet, deleteSheet, setSheetVideoUrl, getSheet } from '../storage/sheets.js';
+import { listSheets, deleteSheet } from '../storage/sheets.js';
 import { removeSheetFromAllPlaylists } from '../storage/playlists.js';
 import { deleteAnnotationsForSheet } from '../storage/annotations.js';
 import { importSources } from '../import/index.js';
 import { importItems, initDragDropImport } from '../import/drag-drop.js';
-import { escapeHtml, formatDate, setActiveTab, getYouTubeVideoId } from '../util.js';
+import { renameSheetPrompt, editVideoPopup } from '../sheet-edit.js';
+import { escapeHtml, formatDate, setActiveTab } from '../util.js';
 
 function iconForFileType(fileType) {
   return fileType === 'pdf' ? 'doc_text' : 'photo';
@@ -29,7 +30,7 @@ function renderList(el, sheets) {
           <div class="item-inner">
             <div class="item-title-row">
               <div class="item-title">${escapeHtml(sheet.title)}</div>
-              <div class="item-after"><i class="icon f7-icons sheet-more" data-id="${sheet.id}">ellipsis</i></div>
+              <div class="item-after"><span class="row-more sheet-more" data-id="${sheet.id}"><i class="icon f7-icons">ellipsis</i></span></div>
             </div>
             <div class="item-subtitle">${formatDate(sheet.createdAt)}</div>
           </div>
@@ -48,8 +49,8 @@ async function refresh(page) {
 function openSheetActions(app, page, sheetId) {
   const buttons = [
     [
-      { text: 'Rename', onClick: () => renamePrompt(app, page, sheetId) },
-      { text: 'Add / Edit Video', onClick: () => videoPrompt(app, page, sheetId) },
+      { text: 'Rename', onClick: () => renameSheetPrompt(app, sheetId, () => refresh(page)) },
+      { text: 'Add / Edit Video', onClick: () => editVideoPopup(app, sheetId, () => refresh(page)) },
       { text: 'Delete', color: 'red', onClick: () => deleteConfirm(app, page, sheetId) },
     ],
     [{ text: 'Cancel', color: 'gray' }],
@@ -57,36 +58,6 @@ function openSheetActions(app, page, sheetId) {
   app.actions
     .create({ buttons })
     .open();
-}
-
-function videoPrompt(app, page, sheetId) {
-  Promise.resolve(getSheet(sheetId)).then((sheet) => {
-    const current = sheet && sheet.videoUrl ? sheet.videoUrl : '';
-    app.dialog.prompt(
-      'Paste a YouTube link to play alongside this sheet. Leave blank to keep the current link.',
-      'Video Link',
-      (value) => {
-        const url = typeof value === 'string' ? value.trim() : '';
-        if (!url) return;
-        if (!getYouTubeVideoId(url)) {
-          app.toast.create({ text: 'Not a valid YouTube link', closeTimeout: 2500 }).open();
-          return;
-        }
-        setSheetVideoUrl(sheetId, url).then(() => refresh(page));
-      },
-      undefined,
-      current
-    );
-  });
-}
-
-function renamePrompt(app, page, sheetId) {
-  app.dialog.prompt('Sheet title', 'Rename', async (value) => {
-    const title = value.trim();
-    if (!title) return;
-    await renameSheet(sheetId, title);
-    refresh(page);
-  });
 }
 
 function deleteConfirm(app, page, sheetId) {
